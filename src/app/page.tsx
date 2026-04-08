@@ -1,50 +1,78 @@
 import Link from 'next/link';
-import { Map, Users, ArrowRight } from 'lucide-react';
+import { ArrowRight, Map, Search, Users } from 'lucide-react';
+
+const quickAccess = [
+  {
+    href: '/cemeteries',
+    title: 'Карта кладбищ',
+    description: 'Просмотр границ кладбищ, секторов и структуры участков на интерактивной карте.',
+    icon: Map,
+    action: 'Открыть карту',
+  },
+  {
+    href: '/burials',
+    title: 'Реестр захоронений',
+    description: 'Карточки персон, даты, сектор и геопозиция захоронения в едином каталоге.',
+    icon: Users,
+    action: 'Перейти в реестр',
+  },
+  {
+    href: '/search',
+    title: 'Поиск по данным',
+    description: 'Быстрый поиск по ФИО, датам и локациям для граждан и городских служб.',
+    icon: Search,
+    action: 'Запустить поиск',
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-12">
-      <div className="text-center max-w-2xl space-y-4 animate-fade-in">
-        <h1 className="text-5xl font-extrabold tracking-tight text-stone-900 sm:text-6xl">
-          Управление <span className="text-primary-600">Цифровыми</span> Кладбищами
-        </h1>
-        <p className="text-lg text-stone-600">
-          Единая платформа для инвентаризации, поиска захоронений и генерации биографий
-          на основе открытых данных и AI.
-        </p>
-      </div>
+    <div className="relative flex-1 overflow-hidden px-4 pb-16 pt-10 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(circle_at_top,rgba(79,107,104,0.22),transparent_66%)]" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl animate-slide-up">
-        {/* Карточка 1 */}
-        <Link href="/cemeteries" className="group glass p-8 rounded-2xl hover:bg-white/90 hover:shadow-xl transition-all cursor-pointer">
-          <div className="h-12 w-12 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <Map className="h-6 w-6" />
-          </div>
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Реестр кладбищ</h2>
-          <p className="text-stone-600 mb-6">
-            Управление секторами, участками и геозонами. Интерактивная карта объектов.
+      <section className="relative mx-auto w-full max-w-6xl animate-fade-in">
+        <div className="surface-card rounded-3xl px-6 py-12 sm:px-10 sm:py-16">
+          <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--ink-muted)]">Digital Cemetery System</p>
+          <h1 className="display-font mt-4 max-w-4xl text-5xl leading-[1.02] text-[color:var(--ink)] sm:text-6xl lg:text-7xl">Цифровой доступ к памяти и реестрам захоронений</h1>
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-[color:var(--ink-muted)] sm:text-lg">
+            Публичный веб-интерфейс для поиска, навигации и проверки данных о кладбищах. Спокойная подача,
+            понятная структура и минимальный визуальный шум.
           </p>
-          <div className="flex items-center text-primary-600 font-semibold group-hover:translate-x-2 transition-transform">
-            <span>Перейти в реестр</span>
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </div>
-        </Link>
 
-        {/* Карточка 2 */}
-        <Link href="/burials" className="group glass p-8 rounded-2xl hover:bg-white/90 hover:shadow-xl transition-all cursor-pointer">
-          <div className="h-12 w-12 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <Users className="h-6 w-6" />
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/search" className="pill-action inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
+              Начать поиск
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/cemeteries"
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] bg-[color:var(--bg-elevated)] px-5 py-2.5 text-sm font-medium text-[color:var(--ink)] transition hover:bg-[color:var(--bg)]"
+            >
+              Открыть карту
+            </Link>
           </div>
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Захоронения</h2>
-          <p className="text-stone-600 mb-6">
-            База усопших, поиск по ФИО, локация на карте и автоматическая генерация биографий.
-          </p>
-          <div className="flex items-center text-primary-600 font-semibold group-hover:translate-x-2 transition-transform">
-            <span>Найти захоронение</span>
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </div>
-        </Link>
-      </div>
+        </div>
+      </section>
+
+      <section className="relative mx-auto mt-8 grid w-full max-w-6xl gap-4 md:grid-cols-3 md:gap-5 animate-slide-up">
+        {quickAccess.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="group surface-muted rounded-2xl p-5 transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]/50"
+          >
+            <div className="inline-flex rounded-xl bg-[color:var(--accent-soft)] p-2.5 text-[color:var(--accent-strong)]">
+              <item.icon className="h-5 w-5" />
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-[color:var(--ink)]">{item.title}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[color:var(--ink-muted)]">{item.description}</p>
+            <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[color:var(--accent-strong)]">
+              {item.action}
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </div>
+          </Link>
+        ))}
+      </section>
     </div>
   );
 }

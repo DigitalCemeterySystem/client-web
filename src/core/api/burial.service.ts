@@ -2,8 +2,10 @@ import { apiClient } from '@/core/api/http-client';
 import type { BurialRequest, BurialResponse } from '@/types';
 
 export const burialService = {
-  getAll: async (): Promise<BurialResponse[]> => {
-    const { data } = await apiClient.get<BurialResponse[]>('/burials');
+  getAll: async (cemeteryId?: number | null): Promise<BurialResponse[]> => {
+    const { data } = await apiClient.get<BurialResponse[]>('/burials', {
+      params: cemeteryId == null ? undefined : { cemeteryId },
+    });
     return data;
   },
 

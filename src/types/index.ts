@@ -48,7 +48,9 @@ export interface BurialResponse {
   latitude: number | null;
   longitude: number | null;
   photoUrl: string | null;
+  sectorId: number | null;
   sectorName: string;
+  cemeteryId: number | null;
   cemeteryName: string;
   biography: string | null;
   biographyStatus: BiographyStatus;

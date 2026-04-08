@@ -4,27 +4,38 @@ import { useState, useEffect, useCallback } from 'react';
 import { burialService } from '@/core/api/burial.service';
 import type { BurialResponse, BurialRequest } from '@/types';
 
-export function useBurials() {
+export function useBurials(cemeteryId?: number | null) {
   const [burials, setBurials] = useState<BurialResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(cemeteryId !== null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await burialService.getAll();
+      const data = await burialService.getAll(cemeteryId);
       setBurials(data);
     } catch {
       setError('Не удалось загрузить список захоронений');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cemeteryId]);
 
   useEffect(() => {
+    if (cemeteryId === null) {
+      setBurials([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    if (cemeteryId !== undefined) {
+      setBurials([]);
+    }
+
     fetchAll();
-  }, [fetchAll]);
+  }, [fetchAll, cemeteryId]);
 
   const create = async (request: BurialRequest): Promise<BurialResponse> => {
     const created = await burialService.create(request);
