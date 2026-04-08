@@ -29,6 +29,11 @@ type CameraSnapshot = {
   pitch: number;
 };
 
+type BoundaryPoint = {
+  longitude: number;
+  latitude: number;
+};
+
 const STYLES = {
   light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -70,12 +75,80 @@ function getPopupData(burial: BurialResponse) {
   };
 }
 
-function polygonFromPoints(points: { longitude: number; latitude: number }[]) {
+function extractGoogleDriveFileId(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.toLowerCase();
+    const isGoogleDriveHost =
+      host === 'drive.google.com' ||
+      host === 'docs.google.com' ||
+      host.endsWith('.drive.google.com');
+    if (!isGoogleDriveHost) return null;
+
+    const idFromQuery = url.searchParams.get('id');
+    if (idFromQuery) return idFromQuery;
+
+    const idFromPath = url.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1];
+    if (idFromPath) return idFromPath;
+  } catch {
+    // Ignore invalid URLs and fallback to regex extraction.
+  }
+
+  return rawUrl.match(/[-\w]{25,}/)?.[0] ?? null;
+}
+
+type PopupPhoto = {
+  src: string;
+  href: string;
+  fallbackSrc?: string;
+};
+
+function resolvePopupPhoto(rawUrl: string | null): PopupPhoto | null {
+  if (!rawUrl?.trim()) return null;
+
+  const source = rawUrl.trim();
+  const fileId = extractGoogleDriveFileId(source);
+  if (!fileId) {
+    return { src: source, href: source };
+  }
+
+  return {
+    src: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`,
+    fallbackSrc: `https://drive.google.com/uc?export=view&id=${fileId}`,
+    href: `https://drive.google.com/uc?export=view&id=${fileId}`,
+  };
+}
+
+function toLinearRing(points: BoundaryPoint[]): [number, number][] {
+  const ring = points.reduce<[number, number][]>((acc, point) => {
+    const longitude = Number(point.longitude);
+    const latitude = Number(point.latitude);
+    if (Number.isFinite(longitude) && Number.isFinite(latitude)) {
+      acc.push([longitude, latitude]);
+    }
+    return acc;
+  }, []);
+
+  if (ring.length < 3) return [];
+
+  const [firstLng, firstLat] = ring[0];
+  const [lastLng, lastLat] = ring[ring.length - 1];
+  if (firstLng !== lastLng || firstLat !== lastLat) {
+    ring.push([firstLng, firstLat]);
+  }
+
+  return ring;
+}
+
+function polygonFromPoints(points: BoundaryPoint[]) {
+  const ring = toLinearRing(points);
+  if (ring.length < 4) return null;
+
   return {
     type: 'Feature' as const,
     geometry: {
       type: 'Polygon' as const,
-      coordinates: [points.map((point) => [point.longitude, point.latitude])],
+      coordinates: [ring],
     },
     properties: {},
   };
@@ -86,26 +159,35 @@ function buildCemeteryData(cemetery?: CemeteryResponse | null): GeoJSON.FeatureC
     return { type: 'FeatureCollection', features: [] };
   }
 
+  const polygon = polygonFromPoints(cemetery.boundary);
+
   return {
     type: 'FeatureCollection',
-    features: [polygonFromPoints(cemetery.boundary)],
+    features: polygon ? [polygon] : [],
   };
 }
 
 function buildSectorsData(sectors?: SectorResponse[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: (sectors ?? []).map((sector) => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Polygon' as const,
-        coordinates: [sector.boundary.map((point) => [point.longitude, point.latitude])],
-      },
-      properties: {
-        id: sector.id,
-        name: sector.name,
-      },
-    })),
+    features: (sectors ?? []).flatMap((sector) => {
+      const ring = toLinearRing(sector.boundary ?? []);
+      if (ring.length < 4) return [];
+
+      return [
+        {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: [ring],
+          },
+          properties: {
+            id: sector.id,
+            name: sector.name,
+          },
+        },
+      ];
+    }),
   };
 }
 
@@ -145,16 +227,13 @@ function clearMarkers(markersRef: MutableRefObject<maplibregl.Marker[]>) {
   markersRef.current = [];
 }
 
-function syncMapState(
+function syncMapLayers(
   map: maplibregl.Map,
-  markersRef: MutableRefObject<maplibregl.Marker[]>,
   cemetery: CemeteryResponse | null | undefined,
   sectors: SectorResponse[] | undefined,
-  burials: BurialResponse[] | undefined,
   selectedSectorId: number | null,
   showBoundary: boolean,
-  showSectors: boolean,
-  showBurials: boolean
+  showSectors: boolean
 ) {
   if (!map.isStyleLoaded()) return;
 
@@ -238,7 +317,14 @@ function syncMapState(
   ensureLayerVisible(map, LAYERS.sectorsFill, showSectors);
   ensureLayerVisible(map, LAYERS.sectorsLine, showSectors);
   ensureLayerVisible(map, LAYERS.selectedSector, showSectors && selectedSectorId !== null);
+}
 
+function syncBurialMarkers(
+  map: maplibregl.Map,
+  markersRef: MutableRefObject<maplibregl.Marker[]>,
+  burials: BurialResponse[] | undefined,
+  showBurials: boolean
+) {
   clearMarkers(markersRef);
   if (!showBurials || !burials?.length) return;
 
@@ -259,6 +345,20 @@ function syncMapState(
     const dates = `${escapeHtml(burial.birthDate ?? '?')} - ${escapeHtml(burial.deathDate ?? '?')}`;
     const sector = escapeHtml(burial.sectorName || '?');
     const bio = escapeHtml(popupData.bio);
+    const popupPhoto = resolvePopupPhoto(popupData.photo);
+    const popupImageHtml = popupPhoto
+      ? `<a href="${escapeHtml(popupPhoto.href)}" target="_blank" rel="noopener noreferrer">
+          <img
+            src="${escapeHtml(popupPhoto.src)}"
+            ${popupPhoto.fallbackSrc ? `data-fallback="${escapeHtml(popupPhoto.fallbackSrc)}"` : ''}
+            onerror="const fallback=this.dataset.fallback;if(fallback&&this.src!==fallback){this.src=fallback;}else{this.style.display='none';}"
+            class="burial-popup-image"
+            alt="Burial photo"
+            loading="lazy"
+            decoding="async"
+          />
+        </a>`
+      : '';
 
     const popup = new maplibregl.Popup({ offset: 22, maxWidth: '340px', className: 'modern-popup' }).setHTML(`
       <article class="burial-popup-card">
@@ -266,11 +366,7 @@ function syncMapState(
           <div class="burial-popup-title">${fullName}</div>
           <div class="burial-popup-dates">${dates}</div>
         </header>
-        ${
-          popupData.photo
-            ? `<img src="${escapeHtml(popupData.photo)}" referrerPolicy="no-referrer" class="burial-popup-image" />`
-            : ''
-        }
+        ${popupImageHtml}
         <div class="burial-popup-body">
           <div class="burial-popup-sector">Квартал: ${sector}</div>
           <p class="burial-popup-bio">${bio || 'Биография отсутствует.'}</p>
@@ -285,6 +381,21 @@ function syncMapState(
 
     markersRef.current.push(marker);
   });
+}
+
+function syncAllMapVisuals(
+  map: maplibregl.Map,
+  markersRef: MutableRefObject<maplibregl.Marker[]>,
+  cemetery: CemeteryResponse | null | undefined,
+  sectors: SectorResponse[] | undefined,
+  burials: BurialResponse[] | undefined,
+  selectedSectorId: number | null,
+  showBoundary: boolean,
+  showSectors: boolean,
+  showBurials: boolean
+) {
+  syncMapLayers(map, cemetery, sectors, selectedSectorId, showBoundary, showSectors);
+  syncBurialMarkers(map, markersRef, burials, showBurials);
 }
 
 export default function CemeteryMap({
@@ -389,7 +500,7 @@ export default function CemeteryMap({
         pendingFocusRef.current = null;
       }
 
-      syncMapState(
+      syncAllMapVisuals(
         map,
         markersRef,
         cemeteryRef.current,
@@ -410,16 +521,14 @@ export default function CemeteryMap({
       setStyleEpoch((prev) => prev + 1);
     };
 
-    const onStyleData = () => {
+    const onStyleLoad = () => {
       finalizeStyleLoad();
     };
 
     const onMapError = () => {
-      if (styleTimeoutRef.current) {
-        clearTimeout(styleTimeoutRef.current);
-        styleTimeoutRef.current = null;
+      if (awaitingStyleLoadRef.current && map.isStyleLoaded()) {
+        finalizeStyleLoad();
       }
-      setMapReady(true);
     };
 
     const onMapClick = (event: maplibregl.MapMouseEvent) => {
@@ -468,24 +577,27 @@ export default function CemeteryMap({
       map.getCanvas().style.cursor = features.length > 0 ? 'pointer' : '';
     };
 
-    map.on('styledata', onStyleData);
-    map.on('load', onStyleData);
+    const onMouseLeave = () => {
+      map.getCanvas().style.cursor = '';
+    };
+
+    map.on('style.load', onStyleLoad);
+    map.on('load', onStyleLoad);
     map.on('error', onMapError);
     map.on('click', onMapClick);
     map.on('mousemove', onMouseMove);
-    map.on('mouseleave', () => {
-      map.getCanvas().style.cursor = '';
-    });
+    map.on('mouseleave', onMouseLeave);
 
     mapRef.current = map;
-    onStyleData();
+    onStyleLoad();
 
     return () => {
-      map.off('styledata', onStyleData);
-      map.off('load', onStyleData);
+      map.off('style.load', onStyleLoad);
+      map.off('load', onStyleLoad);
       map.off('error', onMapError);
       map.off('click', onMapClick);
       map.off('mousemove', onMouseMove);
+      map.off('mouseleave', onMouseLeave);
 
       if (styleTimeoutRef.current) clearTimeout(styleTimeoutRef.current);
 
@@ -526,13 +638,42 @@ export default function CemeteryMap({
       sectorPopupRef.current = null;
     }
 
+    setMapReady(false);
     awaitingStyleLoadRef.current = true;
     map.setStyle(nextStyle);
 
+    const pollStyleReady = (attempt: number) => {
+      if (!awaitingStyleLoadRef.current) return;
+
+      if (map.isStyleLoaded()) {
+        awaitingStyleLoadRef.current = false;
+        syncAllMapVisuals(
+          map,
+          markersRef,
+          cemeteryRef.current,
+          sectorsRef.current,
+          burialsRef.current,
+          selectedSectorIdRef.current,
+          showBoundaryRef.current,
+          showSectorsRef.current,
+          showBurialsRef.current
+        );
+        setStyleEpoch((prev) => prev + 1);
+        setMapReady(true);
+        return;
+      }
+
+      if (attempt >= 40) {
+        awaitingStyleLoadRef.current = false;
+        setMapReady(true);
+        return;
+      }
+
+      styleTimeoutRef.current = setTimeout(() => pollStyleReady(attempt + 1), 150);
+    };
+
     if (styleTimeoutRef.current) clearTimeout(styleTimeoutRef.current);
-    styleTimeoutRef.current = setTimeout(() => {
-      setMapReady(true);
-    }, 5000);
+    styleTimeoutRef.current = setTimeout(() => pollStyleReady(0), 150);
   }, [resolvedTheme]);
 
   useEffect(() => {
@@ -549,64 +690,39 @@ export default function CemeteryMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !map.isStyleLoaded()) return;
+    if (!map || !mapReady) return;
 
-    syncMapState(map, markersRef, cemetery, sectors, burials, selectedSectorId, showBoundary, showSectors, showBurials);
-  }, [burials, cemetery, sectors, selectedSectorId, showBoundary, showBurials, showSectors, mapReady, styleEpoch]);
+    if (map.isStyleLoaded()) {
+      syncMapLayers(map, cemetery, sectors, selectedSectorId, showBoundary, showSectors);
+      return;
+    }
+
+    const onStyleLoad = () => {
+      syncMapLayers(map, cemetery, sectors, selectedSectorId, showBoundary, showSectors);
+    };
+    map.once('style.load', onStyleLoad);
+    return () => {
+      map.off('style.load', onStyleLoad);
+    };
+  }, [cemetery, sectors, selectedSectorId, showBoundary, showSectors, mapReady, styleEpoch]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReady || !map.isStyleLoaded()) return;
+    if (!map || !mapReady) return;
 
-    markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = [];
+    if (map.isStyleLoaded()) {
+      syncBurialMarkers(map, markersRef, burials, showBurials);
+      return;
+    }
 
-    if (!showBurials || !burials?.length) return;
-
-    burials.forEach((burial) => {
-      const latitude = Number(burial.latitude);
-      const longitude = Number(burial.longitude);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-      const markerElement = document.createElement('div');
-      markerElement.className = 'group relative flex items-center justify-center';
-      markerElement.innerHTML = `
-        <div class="h-4 w-4 cursor-pointer rounded-full border-2 border-white bg-red-600 shadow-lg transition-all hover:scale-125 hover:bg-red-500"></div>
-        <div class="absolute -top-1 h-2 w-2 rounded-full bg-red-400 opacity-0 blur-[2px] transition group-hover:opacity-100"></div>
-      `;
-
-      const popupData = getPopupData(burial);
-      const fullName = escapeHtml(burial.fullName);
-      const dates = `${escapeHtml(burial.birthDate ?? '?')} - ${escapeHtml(burial.deathDate ?? '?')}`;
-      const sector = escapeHtml(burial.sectorName || '?');
-      const bio = escapeHtml(popupData.bio);
-
-      const popup = new maplibregl.Popup({ offset: 22, maxWidth: '340px', className: 'modern-popup' }).setHTML(`
-        <article class="burial-popup-card">
-          <header class="burial-popup-head">
-            <div class="burial-popup-title">${fullName}</div>
-            <div class="burial-popup-dates">${dates}</div>
-          </header>
-          ${
-            popupData.photo
-              ? `<img src="${escapeHtml(popupData.photo)}" referrerPolicy="no-referrer" class="burial-popup-image" />`
-              : ''
-          }
-          <div class="burial-popup-body">
-            <div class="burial-popup-sector">Сектор: ${sector}</div>
-            <p class="burial-popup-bio">${bio || 'Биография отсутствует.'}</p>
-          </div>
-        </article>
-      `);
-
-      const marker = new maplibregl.Marker({ element: markerElement })
-        .setLngLat([longitude, latitude])
-        .setPopup(popup)
-        .addTo(map);
-
-      markersRef.current.push(marker);
-    });
-  }, [burials, showBurials, mapReady, cemetery?.id, focusKey, styleEpoch]);
+    const onStyleLoad = () => {
+      syncBurialMarkers(map, markersRef, burials, showBurials);
+    };
+    map.once('style.load', onStyleLoad);
+    return () => {
+      map.off('style.load', onStyleLoad);
+    };
+  }, [burials, showBurials, mapReady, styleEpoch]);
 
   useEffect(() => {
     if (showSectors) return;
@@ -616,6 +732,14 @@ export default function CemeteryMap({
       sectorPopupRef.current = null;
     }
   }, [showSectors]);
+
+  useEffect(() => {
+    setSelectedSectorId(null);
+    if (sectorPopupRef.current) {
+      sectorPopupRef.current.remove();
+      sectorPopupRef.current = null;
+    }
+  }, [cemetery?.id]);
 
   return (
     <div className="relative h-full w-full">
