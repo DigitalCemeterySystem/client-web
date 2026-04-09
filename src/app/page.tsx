@@ -1,18 +1,18 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { ArrowRight, Map, Search, Users } from 'lucide-react';
 
 const quickAccess = [
   {
     href: '/cemeteries',
     title: 'Карта кладбищ',
-    description: 'Просмотр границ кладбищ, секторов и структуры участков на интерактивной карте.',
+    description: 'Просмотр границ кладбищ, кварталов и структуры участков на интерактивной карте.',
     icon: Map,
     action: 'Открыть карту',
   },
   {
     href: '/burials',
     title: 'Реестр захоронений',
-    description: 'Карточки персон, даты, сектор и геопозиция захоронения в едином каталоге.',
+    description: 'Карточки персон, даты, квартал и геопозиция захоронения в едином каталоге.',
     icon: Users,
     action: 'Перейти в реестр',
   },

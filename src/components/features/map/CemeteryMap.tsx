@@ -34,6 +34,14 @@ type BoundaryPoint = {
   latitude: number;
 };
 
+type PopupPhoto = {
+  src: string;
+  href: string;
+  fallbackSrc?: string;
+};
+
+type BurialPopupTriggerMode = 'hover' | 'pinned' | null;
+
 const STYLES = {
   light: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -57,14 +65,35 @@ const SOURCES = {
 
 const DEFAULT_CENTER: [number, number] = [82.9, 55.0];
 const DEFAULT_ZOOM = 10;
+const BIO_PREVIEW_LIMIT = 180;
+const RETURN_TO_BURIAL_POPUP_KEY = 'cemeteries:return-burial-popup-id';
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function formatDate(dateValue: string | null): string {
+  if (!dateValue) return 'Не указана';
+
+  const trimmed = dateValue.trim();
+  const plainDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (plainDateMatch) {
+    const [, year, month, day] = plainDateMatch;
+    return `${day}.${month}.${year}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return trimmed;
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(parsed);
+}
+
+function truncateText(value: string, limit: number): string {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, limit).trimEnd()}...`;
 }
 
 function getPopupData(burial: BurialResponse) {
@@ -97,12 +126,6 @@ function extractGoogleDriveFileId(rawUrl: string): string | null {
   return rawUrl.match(/[-\w]{25,}/)?.[0] ?? null;
 }
 
-type PopupPhoto = {
-  src: string;
-  href: string;
-  fallbackSrc?: string;
-};
-
 function resolvePopupPhoto(rawUrl: string | null): PopupPhoto | null {
   if (!rawUrl?.trim()) return null;
 
@@ -117,6 +140,14 @@ function resolvePopupPhoto(rawUrl: string | null): PopupPhoto | null {
     fallbackSrc: `https://drive.google.com/uc?export=view&id=${fileId}`,
     href: `https://drive.google.com/uc?export=view&id=${fileId}`,
   };
+}
+
+function buildYandexMapsUrl(latitude: number, longitude: number) {
+  return `https://yandex.ru/maps/?ll=${longitude}%2C${latitude}&z=18&pt=${longitude},${latitude},pm2rdm`;
+}
+
+function buildTwoGisUrl(latitude: number, longitude: number) {
+  return `https://2gis.ru/search/${latitude},${longitude}`;
 }
 
 function toLinearRing(points: BoundaryPoint[]): [number, number][] {
@@ -227,6 +258,182 @@ function clearMarkers(markersRef: MutableRefObject<maplibregl.Marker[]>) {
   markersRef.current = [];
 }
 
+function closeSectorPopup(sectorPopupRef: MutableRefObject<maplibregl.Popup | null>) {
+  if (sectorPopupRef.current) {
+    sectorPopupRef.current.remove();
+    sectorPopupRef.current = null;
+  }
+}
+
+function closeBurialPopup(burialPopupRef: MutableRefObject<maplibregl.Popup | null>) {
+  if (burialPopupRef.current) {
+    burialPopupRef.current.remove();
+    burialPopupRef.current = null;
+  }
+}
+
+function createExternalLinkButton(label: string, href: string, iconSrc: string) {
+  const link = document.createElement('a');
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.className = 'burial-popup-map-link';
+  link.setAttribute('aria-label', label);
+  link.setAttribute('title', label);
+
+  const icon = document.createElement('img');
+  icon.src = iconSrc;
+  icon.alt = '';
+  icon.className = 'burial-popup-link-icon';
+
+  link.appendChild(icon);
+  return link;
+}
+
+function readPendingBurialPopupId(): number | null {
+  if (typeof window === 'undefined') return null;
+
+  const rawValue = window.sessionStorage.getItem(RETURN_TO_BURIAL_POPUP_KEY);
+  if (!rawValue) return null;
+
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function writePendingBurialPopupId(burialId: number) {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(RETURN_TO_BURIAL_POPUP_KEY, String(burialId));
+}
+
+function clearPendingBurialPopupId() {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(RETURN_TO_BURIAL_POPUP_KEY);
+}
+
+function buildBurialPopupContent(burial: BurialResponse, onDetailsNavigate: () => void) {
+  const popupData = getPopupData(burial);
+  const popupPhoto = resolvePopupPhoto(popupData.photo);
+  const bio = popupData.bio?.trim() ? popupData.bio : 'Биография отсутствует.';
+  const bioPreview = truncateText(bio, BIO_PREVIEW_LIMIT);
+  const latitude = Number(burial.latitude);
+  const longitude = Number(burial.longitude);
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+  const article = document.createElement('article');
+  article.className = `burial-popup-card${popupPhoto ? ' burial-popup-card--with-photo' : ' burial-popup-card--without-photo'}`;
+
+  if (popupPhoto) {
+    const media = document.createElement('div');
+    media.className = 'burial-popup-media';
+
+    const imageLink = document.createElement('a');
+    imageLink.href = popupPhoto.href;
+    imageLink.target = '_blank';
+    imageLink.rel = 'noopener noreferrer';
+    imageLink.className = 'burial-popup-image-link';
+
+    const image = document.createElement('img');
+    image.src = popupPhoto.src;
+    image.alt = `Фотография захоронения ${burial.fullName}`;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.className = 'burial-popup-image';
+    image.onerror = () => {
+      if (popupPhoto.fallbackSrc && image.src !== popupPhoto.fallbackSrc) {
+        image.src = popupPhoto.fallbackSrc;
+        return;
+      }
+
+      media.remove();
+      article.classList.remove('burial-popup-card--with-photo');
+    };
+
+    imageLink.appendChild(image);
+    media.appendChild(imageLink);
+    article.appendChild(media);
+  }
+
+  const content = document.createElement('div');
+  content.className = 'burial-popup-content';
+
+  const head = document.createElement('div');
+  head.className = 'burial-popup-head';
+
+  const textBlock = document.createElement('div');
+  textBlock.className = 'burial-popup-text-block';
+
+  const title = document.createElement('h3');
+  title.className = 'burial-popup-title';
+  title.textContent = burial.fullName;
+
+  const dates = document.createElement('div');
+  dates.className = 'burial-popup-dates';
+  dates.textContent = `${formatDate(burial.birthDate)} - ${formatDate(burial.deathDate)}`;
+
+  const mapLinks = document.createElement('div');
+  mapLinks.className = 'burial-popup-map-links';
+  if (hasCoordinates) {
+    mapLinks.append(
+      createExternalLinkButton('Открыть в Яндекс Картах', buildYandexMapsUrl(latitude, longitude), '/map-icons/ya_maps.svg'),
+      createExternalLinkButton('Открыть в 2ГИС', buildTwoGisUrl(latitude, longitude), '/map-icons/2gis-icon-logo.svg')
+    );
+  }
+
+  const bioText = document.createElement('p');
+  bioText.className = 'burial-popup-bio';
+  bioText.textContent = bioPreview;
+
+  const summary = document.createElement('div');
+  summary.className = 'burial-popup-summary';
+
+  const detailsLink = document.createElement('a');
+  detailsLink.href = `/burials/${burial.id}`;
+  detailsLink.className = 'burial-popup-details';
+  detailsLink.textContent = 'Подробнее';
+  detailsLink.addEventListener('click', () => {
+    writePendingBurialPopupId(burial.id);
+    onDetailsNavigate();
+  });
+
+  textBlock.append(title, dates);
+  head.append(textBlock, mapLinks);
+  summary.append(bioText, detailsLink);
+  content.append(head, summary);
+  article.appendChild(content);
+
+  return article;
+}
+
+function buildSectorPopupContent(sectorName: string, onClose: () => void) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'quarter-popup-card';
+
+  const header = document.createElement('div');
+  header.className = 'quarter-popup-head';
+
+  const label = document.createElement('div');
+  label.className = 'quarter-popup-label';
+  label.textContent = 'Квартал';
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'quarter-popup-close';
+  closeButton.setAttribute('aria-label', 'Закрыть popup квартала');
+  closeButton.textContent = '×';
+  closeButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    onClose();
+  });
+
+  const name = document.createElement('div');
+  name.className = 'quarter-popup-name';
+  name.textContent = sectorName;
+
+  header.append(label, closeButton);
+  wrapper.append(header, name);
+  return wrapper;
+}
+
 function syncMapLayers(
   map: maplibregl.Map,
   cemetery: CemeteryResponse | null | undefined,
@@ -322,9 +529,15 @@ function syncMapLayers(
 function syncBurialMarkers(
   map: maplibregl.Map,
   markersRef: MutableRefObject<maplibregl.Marker[]>,
+  sectorPopupRef: MutableRefObject<maplibregl.Popup | null>,
+  burialPopupRef: MutableRefObject<maplibregl.Popup | null>,
+  pinnedBurialPopupRef: MutableRefObject<maplibregl.Popup | null>,
+  pendingReturnBurialIdRef: MutableRefObject<number | null>,
   burials: BurialResponse[] | undefined,
   showBurials: boolean
 ) {
+  closeBurialPopup(burialPopupRef);
+  pinnedBurialPopupRef.current = null;
   clearMarkers(markersRef);
   if (!showBurials || !burials?.length) return;
 
@@ -333,51 +546,166 @@ function syncBurialMarkers(
     const longitude = Number(burial.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
 
-    const markerElement = document.createElement('div');
-    markerElement.className = 'group relative flex items-center justify-center';
+    const markerElement = document.createElement('button');
+    markerElement.type = 'button';
+    markerElement.className = 'burial-marker';
+    markerElement.setAttribute('aria-label', `Открыть информацию о захоронении ${burial.fullName}`);
     markerElement.innerHTML = `
-      <div class="h-4 w-4 cursor-pointer rounded-full border-2 border-white bg-red-600 shadow-lg transition-all hover:scale-125 hover:bg-red-500"></div>
-      <div class="absolute -top-1 h-2 w-2 rounded-full bg-red-400 opacity-0 blur-[2px] transition group-hover:opacity-100"></div>
+      <span class="burial-marker__halo"></span>
+      <span class="burial-marker__pin"></span>
     `;
 
-    const popupData = getPopupData(burial);
-    const fullName = escapeHtml(burial.fullName);
-    const dates = `${escapeHtml(burial.birthDate ?? '?')} - ${escapeHtml(burial.deathDate ?? '?')}`;
-    const sector = escapeHtml(burial.sectorName || '?');
-    const bio = escapeHtml(popupData.bio);
-    const popupPhoto = resolvePopupPhoto(popupData.photo);
-    const popupImageHtml = popupPhoto
-      ? `<a href="${escapeHtml(popupPhoto.href)}" target="_blank" rel="noopener noreferrer">
-          <img
-            src="${escapeHtml(popupPhoto.src)}"
-            ${popupPhoto.fallbackSrc ? `data-fallback="${escapeHtml(popupPhoto.fallbackSrc)}"` : ''}
-            onerror="const fallback=this.dataset.fallback;if(fallback&&this.src!==fallback){this.src=fallback;}else{this.style.display='none';}"
-            class="burial-popup-image"
-            alt="Burial photo"
-            loading="lazy"
-            decoding="async"
-          />
-        </a>`
-      : '';
+    const popup = new maplibregl.Popup({
+      offset: 18,
+      maxWidth: '380px',
+      className: 'modern-popup',
+      closeButton: true,
+      closeOnClick: false,
+    }).setDOMContent(
+      buildBurialPopupContent(burial, () => {
+        triggerMode = 'pinned';
+        burialPopupRef.current = popup;
+        pinnedBurialPopupRef.current = popup;
+        clearCloseTimer();
+        setMarkerActive(true);
+      })
+    );
 
-    const popup = new maplibregl.Popup({ offset: 22, maxWidth: '340px', className: 'modern-popup' }).setHTML(`
-      <article class="burial-popup-card">
-        <header class="burial-popup-head">
-          <div class="burial-popup-title">${fullName}</div>
-          <div class="burial-popup-dates">${dates}</div>
-        </header>
-        ${popupImageHtml}
-        <div class="burial-popup-body">
-          <div class="burial-popup-sector">Квартал: ${sector}</div>
-          <p class="burial-popup-bio">${bio || 'Биография отсутствует.'}</p>
-        </div>
-      </article>
-    `);
+    let triggerMode: BurialPopupTriggerMode = null;
+    let pointerOverMarker = false;
+    let pointerOverPopup = false;
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const marker = new maplibregl.Marker({ element: markerElement })
+    const setMarkerActive = (active: boolean) => {
+      markerElement.classList.toggle('is-active', active);
+    };
+
+    const clearCloseTimer = () => {
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
+    };
+
+    const syncMarkerVisual = () => {
+      setMarkerActive(popup.isOpen() || pointerOverMarker);
+    };
+
+    const maybeClosePopup = () => {
+      if (triggerMode === 'pinned' || pointerOverMarker || pointerOverPopup) {
+        syncMarkerVisual();
+        return;
+      }
+
+      if (popup.isOpen()) {
+        popup.remove();
+      } else {
+        syncMarkerVisual();
+      }
+    };
+
+    const schedulePopupClose = () => {
+      clearCloseTimer();
+      closeTimer = setTimeout(maybeClosePopup, 120);
+    };
+
+    const openPopup = (mode: BurialPopupTriggerMode) => {
+      if (pinnedBurialPopupRef.current && pinnedBurialPopupRef.current !== popup) {
+        if (mode === 'hover') {
+          return;
+        }
+
+        if (mode === 'pinned') {
+          return;
+        }
+      }
+
+      clearCloseTimer();
+      triggerMode = mode;
+      if (burialPopupRef.current && burialPopupRef.current !== popup) {
+        burialPopupRef.current.remove();
+      }
+      if (!popup.isOpen()) {
+        popup.setLngLat([longitude, latitude]).addTo(map);
+      }
+      burialPopupRef.current = popup;
+      pinnedBurialPopupRef.current = mode === 'pinned' ? popup : pinnedBurialPopupRef.current;
+      setMarkerActive(true);
+    };
+
+    popup.on('open', () => {
+      closeSectorPopup(sectorPopupRef);
+      if (burialPopupRef.current && burialPopupRef.current !== popup) {
+        burialPopupRef.current.remove();
+      }
+      burialPopupRef.current = popup;
+      setMarkerActive(true);
+
+      const popupElement = popup.getElement();
+      popupElement.onmouseenter = () => {
+        pointerOverPopup = true;
+        clearCloseTimer();
+        setMarkerActive(true);
+      };
+      popupElement.onmouseleave = () => {
+        pointerOverPopup = false;
+        if (triggerMode !== 'pinned') {
+          schedulePopupClose();
+        }
+      };
+    });
+
+    popup.on('close', () => {
+      clearCloseTimer();
+      pointerOverPopup = false;
+      if (burialPopupRef.current === popup) {
+        burialPopupRef.current = null;
+      }
+      if (pinnedBurialPopupRef.current === popup) {
+        pinnedBurialPopupRef.current = null;
+      }
+      triggerMode = null;
+      syncMarkerVisual();
+    });
+
+    markerElement.addEventListener('mouseenter', () => {
+      pointerOverMarker = true;
+      openPopup(triggerMode === 'pinned' ? 'pinned' : 'hover');
+    });
+
+    markerElement.addEventListener('mouseleave', () => {
+      pointerOverMarker = false;
+      if (triggerMode !== 'pinned') {
+        schedulePopupClose();
+      } else {
+        syncMarkerVisual();
+      }
+    });
+
+    markerElement.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      pointerOverMarker = true;
+
+      if (popup.isOpen() && triggerMode === 'pinned') {
+        triggerMode = null;
+        popup.remove();
+        return;
+      }
+
+      openPopup('pinned');
+    });
+
+    const marker = new maplibregl.Marker({ element: markerElement, anchor: 'center' })
       .setLngLat([longitude, latitude])
-      .setPopup(popup)
       .addTo(map);
+
+    if (pendingReturnBurialIdRef.current === burial.id) {
+      openPopup('pinned');
+      pendingReturnBurialIdRef.current = null;
+      clearPendingBurialPopupId();
+    }
 
     markersRef.current.push(marker);
   });
@@ -386,6 +714,10 @@ function syncBurialMarkers(
 function syncAllMapVisuals(
   map: maplibregl.Map,
   markersRef: MutableRefObject<maplibregl.Marker[]>,
+  sectorPopupRef: MutableRefObject<maplibregl.Popup | null>,
+  burialPopupRef: MutableRefObject<maplibregl.Popup | null>,
+  pinnedBurialPopupRef: MutableRefObject<maplibregl.Popup | null>,
+  pendingReturnBurialIdRef: MutableRefObject<number | null>,
   cemetery: CemeteryResponse | null | undefined,
   sectors: SectorResponse[] | undefined,
   burials: BurialResponse[] | undefined,
@@ -395,7 +727,16 @@ function syncAllMapVisuals(
   showBurials: boolean
 ) {
   syncMapLayers(map, cemetery, sectors, selectedSectorId, showBoundary, showSectors);
-  syncBurialMarkers(map, markersRef, burials, showBurials);
+  syncBurialMarkers(
+    map,
+    markersRef,
+    sectorPopupRef,
+    burialPopupRef,
+    pinnedBurialPopupRef,
+    pendingReturnBurialIdRef,
+    burials,
+    showBurials
+  );
 }
 
 export default function CemeteryMap({
@@ -415,6 +756,9 @@ export default function CemeteryMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const sectorPopupRef = useRef<maplibregl.Popup | null>(null);
+  const burialPopupRef = useRef<maplibregl.Popup | null>(null);
+  const pinnedBurialPopupRef = useRef<maplibregl.Popup | null>(null);
+  const pendingReturnBurialIdRef = useRef<number | null>(null);
   const styleUrlRef = useRef(STYLES.light);
   const cameraBeforeStyleRef = useRef<CameraSnapshot | null>(null);
   const pendingFocusRef = useRef<CemeteryResponse | null>(null);
@@ -435,6 +779,24 @@ export default function CemeteryMap({
 
   const initialCenter = useMemo<[number, number]>(() => [...center] as [number, number], []);
   const initialZoom = useMemo(() => zoom, []);
+
+  useEffect(() => {
+    pendingReturnBurialIdRef.current = readPendingBurialPopupId();
+  }, []);
+
+  useEffect(() => {
+    const syncPendingReturnPopup = () => {
+      pendingReturnBurialIdRef.current = readPendingBurialPopupId();
+    };
+
+    window.addEventListener('pageshow', syncPendingReturnPopup);
+    window.addEventListener('focus', syncPendingReturnPopup);
+
+    return () => {
+      window.removeEventListener('pageshow', syncPendingReturnPopup);
+      window.removeEventListener('focus', syncPendingReturnPopup);
+    };
+  }, []);
 
   useEffect(() => {
     showSectorsRef.current = showSectors;
@@ -503,6 +865,10 @@ export default function CemeteryMap({
       syncAllMapVisuals(
         map,
         markersRef,
+        sectorPopupRef,
+        burialPopupRef,
+        pinnedBurialPopupRef,
+        pendingReturnBurialIdRef,
         cemeteryRef.current,
         sectorsRef.current,
         burialsRef.current,
@@ -532,6 +898,11 @@ export default function CemeteryMap({
     };
 
     const onMapClick = (event: maplibregl.MapMouseEvent) => {
+      const clickTarget = event.originalEvent.target;
+      if (clickTarget instanceof HTMLElement && clickTarget.closest('.maplibregl-marker')) {
+        return;
+      }
+
       if (!showSectorsRef.current) return;
       if (!map.isStyleLoaded()) return;
       if (!map.getLayer(LAYERS.sectorsFill)) return;
@@ -541,29 +912,24 @@ export default function CemeteryMap({
 
       if (!feature) {
         setSelectedSectorId(null);
-        if (sectorPopupRef.current) {
-          sectorPopupRef.current.remove();
-          sectorPopupRef.current = null;
-        }
+        closeSectorPopup(sectorPopupRef);
         return;
       }
 
       const sectorId = Number(feature.properties?.id);
-      const sectorName = String(feature.properties?.name ?? 'Сектор');
+      const sectorName = String(feature.properties?.name ?? 'Квартал');
       setSelectedSectorId(Number.isFinite(sectorId) ? sectorId : null);
 
-      if (sectorPopupRef.current) {
-        sectorPopupRef.current.remove();
-      }
+      closeSectorPopup(sectorPopupRef);
 
-      sectorPopupRef.current = new maplibregl.Popup({ offset: 14, closeButton: false, closeOnClick: false, className: 'modern-popup' })
+      sectorPopupRef.current = new maplibregl.Popup({
+        offset: 14,
+        closeButton: false,
+        closeOnClick: false,
+        className: 'modern-popup',
+      })
         .setLngLat(event.lngLat)
-        .setHTML(`
-          <div class="sector-popup-card">
-            <div class="sector-popup-label">Сектор</div>
-            <div class="sector-popup-name">${escapeHtml(sectorName)}</div>
-          </div>
-        `)
+        .setDOMContent(buildSectorPopupContent(sectorName, () => closeSectorPopup(sectorPopupRef)))
         .addTo(map);
     };
 
@@ -604,10 +970,9 @@ export default function CemeteryMap({
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
 
-      if (sectorPopupRef.current) {
-        sectorPopupRef.current.remove();
-        sectorPopupRef.current = null;
-      }
+      closeSectorPopup(sectorPopupRef);
+      closeBurialPopup(burialPopupRef);
+      pinnedBurialPopupRef.current = null;
 
       map.remove();
       mapRef.current = null;
@@ -633,10 +998,9 @@ export default function CemeteryMap({
       pitch: map.getPitch(),
     };
 
-    if (sectorPopupRef.current) {
-      sectorPopupRef.current.remove();
-      sectorPopupRef.current = null;
-    }
+    closeSectorPopup(sectorPopupRef);
+    closeBurialPopup(burialPopupRef);
+    pinnedBurialPopupRef.current = null;
 
     setMapReady(false);
     awaitingStyleLoadRef.current = true;
@@ -650,6 +1014,10 @@ export default function CemeteryMap({
         syncAllMapVisuals(
           map,
           markersRef,
+          sectorPopupRef,
+          burialPopupRef,
+          pinnedBurialPopupRef,
+          pendingReturnBurialIdRef,
           cemeteryRef.current,
           sectorsRef.current,
           burialsRef.current,
@@ -677,16 +1045,27 @@ export default function CemeteryMap({
   }, [resolvedTheme]);
 
   useEffect(() => {
-    if (!cemetery?.boundary?.length) return;
-
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) {
+    if (!map) return;
+
+    if (!cemetery?.boundary?.length) {
+      closeSectorPopup(sectorPopupRef);
+      setSelectedSectorId(null);
+      map.flyTo({
+        center: initialCenter,
+        zoom: initialZoom,
+        duration: 900,
+      });
+      return;
+    }
+
+    if (!map.isStyleLoaded()) {
       pendingFocusRef.current = cemetery;
       return;
     }
 
     fitToCemetery(map, cemetery);
-  }, [focusKey, cemetery?.id]);
+  }, [cemetery, focusKey, initialCenter, initialZoom]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -711,12 +1090,30 @@ export default function CemeteryMap({
     if (!map || !mapReady) return;
 
     if (map.isStyleLoaded()) {
-      syncBurialMarkers(map, markersRef, burials, showBurials);
+      syncBurialMarkers(
+        map,
+        markersRef,
+        sectorPopupRef,
+        burialPopupRef,
+        pinnedBurialPopupRef,
+        pendingReturnBurialIdRef,
+        burials,
+        showBurials
+      );
       return;
     }
 
     const onStyleLoad = () => {
-      syncBurialMarkers(map, markersRef, burials, showBurials);
+      syncBurialMarkers(
+        map,
+        markersRef,
+        sectorPopupRef,
+        burialPopupRef,
+        pinnedBurialPopupRef,
+        pendingReturnBurialIdRef,
+        burials,
+        showBurials
+      );
     };
     map.once('style.load', onStyleLoad);
     return () => {
@@ -727,18 +1124,14 @@ export default function CemeteryMap({
   useEffect(() => {
     if (showSectors) return;
     setSelectedSectorId(null);
-    if (sectorPopupRef.current) {
-      sectorPopupRef.current.remove();
-      sectorPopupRef.current = null;
-    }
+    closeSectorPopup(sectorPopupRef);
   }, [showSectors]);
 
   useEffect(() => {
     setSelectedSectorId(null);
-    if (sectorPopupRef.current) {
-      sectorPopupRef.current.remove();
-      sectorPopupRef.current = null;
-    }
+    closeSectorPopup(sectorPopupRef);
+    closeBurialPopup(burialPopupRef);
+    pinnedBurialPopupRef.current = null;
   }, [cemetery?.id]);
 
   return (

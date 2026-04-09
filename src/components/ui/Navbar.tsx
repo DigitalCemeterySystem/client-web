@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { Map, Users, Search, Trees, Sun, Moon } from 'lucide-react';
@@ -23,8 +23,8 @@ export default function Navbar() {
 
   return (
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-[color:var(--line)]/80 bg-[color:var(--bg)]/75 backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="group flex items-center gap-3">
+      <div className="flex h-16 w-full items-center px-4 sm:px-6">
+        <Link href="/" className="group flex flex-shrink-0 items-center gap-3">
           <div className="rounded-xl bg-[color:var(--accent)]/15 p-2 text-[color:var(--accent)] transition group-hover:bg-[color:var(--accent)]/20">
             <Trees className="h-5 w-5" />
           </div>
@@ -34,7 +34,7 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <div className="hidden items-center gap-1 lg:flex">
+        <div className="hidden flex-1 items-center justify-center gap-1 px-6 lg:flex">
           {links.map((item) => (
             <NavLink
               key={item.href}
@@ -46,7 +46,7 @@ export default function Navbar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex flex-shrink-0 items-center gap-2">
           <div className="hidden items-center gap-1 rounded-full border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-1 py-1 sm:flex lg:hidden">
             {links.map((item) => (
               <NavLink

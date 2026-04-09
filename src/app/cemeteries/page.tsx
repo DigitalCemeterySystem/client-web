@@ -1,11 +1,22 @@
-'use client';
+﻿'use client';
 
 import { useCemeteries } from '@/hooks/useCemeteries';
 import { useBurials } from '@/hooks/useBurials';
 import type { CemeteryResponse } from '@/types';
 import dynamic from 'next/dynamic';
-import { AlertCircle, ChevronLeft, ChevronRight, Layers, Loader2, Map as MapIcon, Users } from 'lucide-react';
-import { useState } from 'react';
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Layers,
+  Loader2,
+  Map as MapIcon,
+  Users,
+  X,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -18,6 +29,12 @@ const CemeteryMap = dynamic(() => import('@/components/features/map/CemeteryMap'
   loading: () => <div className="h-full min-h-[400px] w-full animate-pulse rounded-2xl bg-[color:var(--bg-elevated)]" />,
 });
 
+const DEFAULT_LAYERS = {
+  boundary: true,
+  sectors: true,
+  burials: true,
+};
+
 export default function CemeteriesPage() {
   const { cemeteries, loading: cLoading, error: cError } = useCemeteries();
 
@@ -25,11 +42,34 @@ export default function CemeteriesPage() {
   const { burials, loading: bLoading } = useBurials(selectedCemetery?.id ?? null);
   const [focusKey, setFocusKey] = useState(0);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [layers, setLayers] = useState({
-    boundary: true,
-    sectors: true,
-    burials: true,
-  });
+  const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
+  const [layers, setLayers] = useState(DEFAULT_LAYERS);
+  const [infoCemeteryId, setInfoCemeteryId] = useState<number | null>(null);
+
+  const burialCountsByCemetery = useMemo(
+    () =>
+      new Map(
+        cemeteries.map((cemetery) => [
+          cemetery.id,
+          (cemetery.sectors ?? []).reduce((sum, quarter) => sum + (quarter.burialCount ?? 0), 0),
+        ])
+      ),
+    [cemeteries]
+  );
+
+  const resetSelection = () => {
+    setSelectedCemetery(null);
+    setLayers(DEFAULT_LAYERS);
+    setIsLayersPanelOpen(false);
+    setInfoCemeteryId(null);
+    setFocusKey((prev) => prev + 1);
+  };
+
+  const selectCemetery = (cemetery: CemeteryResponse) => {
+    setSelectedCemetery(cemetery);
+    setIsLayersPanelOpen(true);
+    setFocusKey((prev) => prev + 1);
+  };
 
   if (cLoading) {
     return <LoadingState />;
@@ -48,7 +88,7 @@ export default function CemeteriesPage() {
       <aside
         className={cn(
           'surface-card z-20 flex h-full flex-shrink-0 flex-col border-r transition-all duration-300 ease-in-out',
-          isPanelOpen ? 'w-80 translate-x-0 md:w-96' : 'w-0 -translate-x-full overflow-hidden opacity-0 border-none'
+          isPanelOpen ? 'w-80 translate-x-0 md:w-96' : 'w-0 -translate-x-full overflow-hidden border-none opacity-0'
         )}
       >
         <div className="shrink-0 border-b border-[color:var(--line)] p-5">
@@ -68,32 +108,73 @@ export default function CemeteriesPage() {
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          {cemeteries.map((cemetery) => (
-            <button
-              key={cemetery.id}
-              onClick={() => {
-                setSelectedCemetery(cemetery);
-                setFocusKey((prev) => prev + 1);
-              }}
-              className={cn(
-                'w-full rounded-xl border p-4 text-left transition duration-200',
-                selectedCemetery?.id === cemetery.id
-                  ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)]/60 shadow-[0_0_0_1px_var(--accent)]'
-                  : 'border-[color:var(--line)] bg-[color:var(--bg-panel)] hover:border-[color:var(--accent)]/60 hover:bg-[color:var(--bg-elevated)]'
-              )}
-            >
-              <h3 className="text-base font-semibold text-[color:var(--ink)]">{cemetery.name}</h3>
-              <p className="mt-1 line-clamp-2 text-xs text-[color:var(--ink-muted)]">{cemetery.address}</p>
-              <div className="mt-3 flex items-center gap-2">
-                <span className="rounded-md bg-[color:var(--bg-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--ink-muted)]">
-                  ID {cemetery.id}
-                </span>
-                <span className="rounded-md bg-[color:var(--accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[color:var(--accent-strong)]">
-                  Секторов: {cemetery.sectors?.length ?? 0}
-                </span>
-              </div>
-            </button>
-          ))}
+          {cemeteries.map((cemetery) => {
+            const isSelected = selectedCemetery?.id === cemetery.id;
+            const burialCount = burialCountsByCemetery.get(cemetery.id) ?? 0;
+            const isInfoOpen = infoCemeteryId === cemetery.id;
+
+            return (
+              <article
+                key={cemetery.id}
+                className={cn(
+                  'relative overflow-hidden rounded-2xl border p-4 transition duration-200',
+                  isSelected
+                    ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)]/60 shadow-[0_0_0_1px_var(--accent)]'
+                    : 'border-[color:var(--line)] bg-[color:var(--bg-panel)] hover:border-[color:var(--accent)]/60 hover:bg-[color:var(--bg-elevated)]'
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => selectCemetery(cemetery)}
+                    className="min-w-0 flex-1 text-left"
+                    aria-pressed={isSelected}
+                  >
+                    <h3 className="pr-8 text-base font-semibold text-[color:var(--ink)]">{cemetery.name}</h3>
+                    <p className="mt-1 line-clamp-2 text-xs text-[color:var(--ink-muted)]">{cemetery.address}</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setInfoCemeteryId(isInfoOpen ? null : cemetery.id)}
+                    className="rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-panel)]/75 p-2 text-[color:var(--ink-muted)] transition hover:text-[color:var(--ink)]"
+                    aria-label={`Показать описание кладбища ${cemetery.name}`}
+                    aria-expanded={isInfoOpen}
+                  >
+                    <Info size={15} />
+                  </button>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md bg-[color:var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--accent-strong)]">
+                    Захоронений: {burialCount}
+                  </span>
+                  <span className="rounded-md bg-[color:var(--bg-elevated)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--ink-muted)]">
+                    Кварталов: {cemetery.sectors?.length ?? 0}
+                  </span>
+                </div>
+
+                {isInfoOpen && (
+                  <div className="mt-3 rounded-2xl border border-[color:var(--line)]/80 bg-[color:var(--bg-elevated)]/85 p-3 text-sm leading-relaxed text-[color:var(--ink-muted)]">
+                    {cemetery.description?.trim() || 'Описание отсутствует.'}
+                  </div>
+                )}
+
+                {isSelected && (
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={resetSelection}
+                      className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-3 py-2 text-xs font-semibold text-[color:var(--ink-muted)] transition hover:text-[color:var(--ink)]"
+                    >
+                      <X size={14} />
+                      Отменить выбор
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       </aside>
 
@@ -108,32 +189,44 @@ export default function CemeteriesPage() {
       )}
 
       <main className="relative flex-1 overflow-hidden bg-[color:var(--bg-elevated)]">
-        <div className="absolute right-4 top-4 z-10">
-          <div className="surface-card flex min-w-[170px] flex-col gap-2 rounded-xl p-3">
-            <div className="mb-1 flex items-center gap-2 px-1">
-              <Layers size={14} className="text-[color:var(--ink-muted)]" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">Слои</span>
-            </div>
+        <div className="absolute right-4 top-4 z-10 flex flex-col items-end gap-3">
+          <button
+            type="button"
+            onClick={() => setIsLayersPanelOpen((current) => !current)}
+            className="surface-card inline-flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-[color:var(--ink)]"
+            aria-expanded={isLayersPanelOpen}
+            aria-label={isLayersPanelOpen ? 'Свернуть панель слоёв' : 'Развернуть панель слоёв'}
+          >
+            <Layers size={16} className="text-[color:var(--ink-muted)]" />
+            <span>Слои</span>
+            <ChevronDown
+              size={16}
+              className={cn('text-[color:var(--ink-muted)] transition-transform', isLayersPanelOpen && 'rotate-180')}
+            />
+          </button>
 
-            <LayerToggle
-              active={layers.boundary}
-              onClick={() => setLayers((current) => ({ ...current, boundary: !current.boundary }))}
-              icon={<MapIcon size={14} />}
-              label="Границы"
-            />
-            <LayerToggle
-              active={layers.sectors}
-              onClick={() => setLayers((current) => ({ ...current, sectors: !current.sectors }))}
-              icon={<Layers size={14} />}
-              label="Кварталы"
-            />
-            <LayerToggle
-              active={layers.burials}
-              onClick={() => setLayers((current) => ({ ...current, burials: !current.burials }))}
-              icon={<Users size={14} />}
-              label="Захоронения"
-            />
-          </div>
+          {isLayersPanelOpen && (
+            <div className="surface-card flex min-w-[188px] flex-col gap-2 rounded-2xl p-3">
+              <LayerToggle
+                active={layers.boundary}
+                onClick={() => setLayers((current) => ({ ...current, boundary: !current.boundary }))}
+                icon={<MapIcon size={14} />}
+                label="Границы"
+              />
+              <LayerToggle
+                active={layers.sectors}
+                onClick={() => setLayers((current) => ({ ...current, sectors: !current.sectors }))}
+                icon={<Layers size={14} />}
+                label="Кварталы"
+              />
+              <LayerToggle
+                active={layers.burials}
+                onClick={() => setLayers((current) => ({ ...current, burials: !current.burials }))}
+                icon={<Users size={14} />}
+                label="Захоронения"
+              />
+            </div>
+          )}
         </div>
 
         <div className="h-full w-full">
@@ -187,7 +280,7 @@ function EmptyState() {
     <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-1 flex-col items-center justify-center px-6 text-center">
       <h2 className="text-xl font-semibold text-[color:var(--ink)]">Реестр кладбищ пока пуст</h2>
       <p className="mt-2 text-sm text-[color:var(--ink-muted)]">
-        После добавления данных здесь появится список кладбищ и интерактивная карта с секторами.
+        После добавления данных здесь появится список кладбищ и интерактивная карта с кварталами.
       </p>
     </div>
   );

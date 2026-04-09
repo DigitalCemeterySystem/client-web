@@ -98,100 +98,332 @@ html.dark .map-container canvas {
 
 .modern-popup .maplibregl-popup-content {
   padding: 0;
-  border-radius: 14px;
+  border-radius: 22px;
   background: transparent;
   box-shadow: none;
 }
 
+.modern-popup .maplibregl-popup-tip {
+  opacity: 0.82;
+}
+
 .modern-popup .maplibregl-popup-close-button {
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
   color: var(--ink-muted);
-  font-size: 18px;
-  padding: 4px 8px;
+  font-size: 16px;
   line-height: 1;
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+  backdrop-filter: blur(10px);
 }
 
 .modern-popup .maplibregl-popup-close-button:hover {
   color: var(--ink);
+}
+
+.burial-marker {
+  position: relative;
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
   background: transparent;
+  cursor: pointer;
+}
+
+.burial-marker__halo {
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, #b03a2e 18%, transparent);
+  opacity: 0;
+  transform: scale(0.78);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.burial-marker__pin {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fffdf9;
+  border-radius: 9999px;
+  background: #8f877f;
+  box-shadow: 0 6px 16px rgba(37, 33, 30, 0.28);
+  transform: scale(1);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.burial-marker:hover .burial-marker__halo,
+.burial-marker.is-active .burial-marker__halo {
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #c44737 22%, transparent);
+}
+
+.burial-marker:hover .burial-marker__pin,
+.burial-marker.is-active .burial-marker__pin {
+  background: #d04f3f;
+  box-shadow: 0 10px 22px rgba(176, 58, 46, 0.3);
+  transform: scale(1.22);
 }
 
 .burial-popup-card {
-  width: 320px;
+  display: flex;
+  width: min(92vw, 360px);
+  max-width: 360px;
+  max-height: min(78vh, 460px);
+  flex-direction: column;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
-  border-radius: 14px;
-  background: var(--bg-panel);
-  box-shadow: 0 18px 40px rgba(22, 20, 18, 0.22);
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-panel) 96%, transparent), color-mix(in srgb, var(--accent-soft) 18%, transparent)),
+    color-mix(in srgb, var(--bg-panel) 82%, transparent);
+  box-shadow: 0 20px 48px rgba(22, 20, 18, 0.2);
+  backdrop-filter: blur(14px) saturate(1.06);
 }
 
-.burial-popup-head {
-  padding: 12px 14px 10px;
-  background: linear-gradient(130deg, color-mix(in srgb, var(--accent-soft) 85%, white), var(--bg-panel));
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+.burial-popup-card--with-photo {
+  min-height: 0;
 }
 
-.burial-popup-title {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--ink);
+.burial-popup-card--without-photo .burial-popup-content {
+  padding-top: 14px;
 }
 
-.burial-popup-dates {
-  margin-top: 3px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+.burial-popup-card--without-photo .burial-popup-map-links {
+  margin-top: 28px;
+}
+
+.burial-popup-media {
+  display: block;
+  width: 100%;
+}
+
+.burial-popup-image-link {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--accent-soft) 52%, transparent), transparent 62%),
+    color-mix(in srgb, var(--bg-elevated) 84%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
 }
 
 .burial-popup-image {
   display: block;
   width: 100%;
-  height: 150px;
+  height: 100%;
   object-fit: cover;
 }
 
-.burial-popup-body {
-  padding: 12px 14px 14px;
+.burial-popup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 15px;
 }
 
-.burial-popup-sector {
-  display: inline-flex;
-  padding: 4px 8px;
-  border-radius: 9999px;
-  font-size: 11px;
+.burial-popup-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.burial-popup-text-block {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.burial-popup-title {
+  font-size: 19px;
   font-weight: 700;
-  color: #fff;
-  background: color-mix(in srgb, var(--accent) 88%, black 12%);
+  line-height: 1.15;
+  color: var(--ink);
 }
 
-.burial-popup-bio {
-  margin-top: 10px;
+.burial-popup-dates {
+  margin-top: 4px;
   font-size: 12px;
-  line-height: 1.45;
+  font-weight: 600;
   color: var(--ink-muted);
 }
 
-.sector-popup-card {
-  min-width: 140px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
-  background: var(--bg-panel);
-  box-shadow: 0 14px 30px rgba(22, 20, 18, 0.18);
-  padding: 9px 10px;
+.burial-popup-map-links {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
 }
 
-.sector-popup-label {
+.burial-popup-map-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 56%, var(--bg-panel) 44%);
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.burial-popup-map-link:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--accent-soft) 76%, var(--bg-panel) 24%);
+  box-shadow: 0 10px 20px rgba(79, 107, 104, 0.16);
+}
+
+.burial-popup-link-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.burial-popup-bio {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.burial-popup-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.burial-popup-details {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, white 12%);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 86%, white 14%), color-mix(in srgb, var(--accent-strong) 80%, black 20%)),
+    color-mix(in srgb, var(--accent) 88%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 22px rgba(79, 107, 104, 0.22);
+  backdrop-filter: blur(14px) saturate(1.08);
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
+}
+
+.burial-popup-details:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 14px 26px rgba(79, 107, 104, 0.28);
+  filter: saturate(1.06);
+}
+
+.quarter-popup-card {
+  min-width: 180px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-panel) 84%, transparent), color-mix(in srgb, var(--accent-soft) 26%, transparent)),
+    color-mix(in srgb, var(--bg-panel) 70%, transparent);
+  box-shadow: 0 22px 48px rgba(22, 20, 18, 0.22);
+  backdrop-filter: blur(16px);
+  padding: 14px;
+}
+
+.quarter-popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.quarter-popup-label {
   font-size: 10px;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-muted);
 }
 
-.sector-popup-name {
-  margin-top: 2px;
-  font-size: 13px;
+.quarter-popup-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--bg-elevated) 76%, transparent);
+  color: var(--ink-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.quarter-popup-name {
+  margin-top: 10px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .burial-popup-card,
+  .burial-popup-card--with-photo {
+    width: min(92vw, 340px);
+  }
+
+  .burial-popup-head {
+    gap: 10px;
+  }
+
+  .burial-popup-summary {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .burial-popup-map-link {
+    width: 40px;
+    height: 40px;
+  }
+
+  .burial-popup-details {
+    min-height: 38px;
+    padding-inline: 12px;
+  }
 }
