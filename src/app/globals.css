@@ -182,8 +182,8 @@ html.dark .map-container canvas {
 
 .burial-popup-card {
   display: flex;
-  width: min(92vw, 360px);
-  max-width: 360px;
+  width: min(84vw, 300px);
+  max-width: 300px;
   max-height: min(78vh, 460px);
   flex-direction: column;
   overflow: hidden;
@@ -405,7 +405,7 @@ html.dark .map-container canvas {
 @media (max-width: 720px) {
   .burial-popup-card,
   .burial-popup-card--with-photo {
-    width: min(92vw, 340px);
+    width: min(82vw, 280px);
   }
 
   .burial-popup-head {

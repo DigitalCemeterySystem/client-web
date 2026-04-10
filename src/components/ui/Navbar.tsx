@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { Map, Users, Search, Trees, Sun, Moon } from 'lucide-react';
+import { Map, Users, Trees, Sun, Moon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -9,7 +9,6 @@ import { useEffect, useState } from 'react';
 const links = [
   { href: '/cemeteries', label: 'Кладбища', icon: Map },
   { href: '/burials', label: 'Захоронения', icon: Users },
-  { href: '/search', label: 'Поиск', icon: Search },
 ];
 
 export default function Navbar() {

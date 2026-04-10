@@ -135,7 +135,7 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
       return;
     }
 
-    router.push('/cemeteries');
+    router.push('/burials');
   };
 
   useEffect(() => {
@@ -246,7 +246,7 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
           className="mt-6 inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] px-4 py-2 text-sm font-semibold text-[color:var(--ink)]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Вернуться к карте
+          Вернуться назад
         </button>
       </section>
     );
@@ -260,7 +260,7 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
         className="inline-flex items-center gap-2 text-sm font-semibold text-[color:var(--accent-strong)] transition hover:text-[color:var(--ink)]"
       >
         <ArrowLeft className="h-4 w-4" />
-        К карте кладбищ
+        Назад
       </button>
 
       <article className="surface-card mt-5 overflow-hidden rounded-[2rem] p-5 sm:p-6 lg:p-8">
