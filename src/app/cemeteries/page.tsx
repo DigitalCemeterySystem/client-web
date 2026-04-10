@@ -16,7 +16,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -35,8 +35,49 @@ const DEFAULT_LAYERS = {
   burials: true,
 };
 
+const CEMETERIES_PAGE_STATE_KEY = 'cemeteries:page-state';
+
+type CemeteriesPageState = {
+  selectedCemeteryId: number | null;
+  isPanelOpen: boolean;
+  isLayersPanelOpen: boolean;
+  layers: typeof DEFAULT_LAYERS;
+  infoCemeteryId: number | null;
+};
+
+function readSavedPageState(): CemeteriesPageState | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const rawValue = window.sessionStorage.getItem(CEMETERIES_PAGE_STATE_KEY);
+    if (!rawValue) return null;
+
+    const parsed = JSON.parse(rawValue) as Partial<CemeteriesPageState>;
+    return {
+      selectedCemeteryId: Number.isFinite(parsed.selectedCemeteryId) ? Number(parsed.selectedCemeteryId) : null,
+      isPanelOpen: parsed.isPanelOpen ?? true,
+      isLayersPanelOpen: parsed.isLayersPanelOpen ?? false,
+      layers: {
+        boundary: parsed.layers?.boundary ?? DEFAULT_LAYERS.boundary,
+        sectors: parsed.layers?.sectors ?? DEFAULT_LAYERS.sectors,
+        burials: parsed.layers?.burials ?? DEFAULT_LAYERS.burials,
+      },
+      infoCemeteryId: Number.isFinite(parsed.infoCemeteryId) ? Number(parsed.infoCemeteryId) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedPageState(state: CemeteriesPageState) {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(CEMETERIES_PAGE_STATE_KEY, JSON.stringify(state));
+}
+
 export default function CemeteriesPage() {
   const { cemeteries, loading: cLoading, error: cError } = useCemeteries();
+  const pendingStateRef = useRef<CemeteriesPageState | null>(null);
+  const restoredStateRef = useRef(false);
 
   const [selectedCemetery, setSelectedCemetery] = useState<CemeteryResponse | null>(null);
   const { burials, loading: bLoading } = useBurials(selectedCemetery?.id ?? null);
@@ -45,6 +86,10 @@ export default function CemeteriesPage() {
   const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [infoCemeteryId, setInfoCemeteryId] = useState<number | null>(null);
+
+  useEffect(() => {
+    pendingStateRef.current = readSavedPageState();
+  }, []);
 
   const burialCountsByCemetery = useMemo(
     () =>
@@ -70,6 +115,41 @@ export default function CemeteriesPage() {
     setIsLayersPanelOpen(true);
     setFocusKey((prev) => prev + 1);
   };
+
+  useEffect(() => {
+    if (restoredStateRef.current) return;
+    if (!cemeteries.length) return;
+
+    const savedState = pendingStateRef.current;
+    restoredStateRef.current = true;
+
+    if (!savedState) return;
+
+    const restoredCemetery =
+      savedState.selectedCemeteryId === null
+        ? null
+        : cemeteries.find((cemetery) => cemetery.id === savedState.selectedCemeteryId) ?? null;
+
+    setSelectedCemetery(restoredCemetery);
+    setIsPanelOpen(savedState.isPanelOpen);
+    setIsLayersPanelOpen(savedState.isLayersPanelOpen);
+    setLayers(savedState.layers);
+    setInfoCemeteryId(savedState.infoCemeteryId);
+    setFocusKey((prev) => prev + 1);
+    pendingStateRef.current = null;
+  }, [cemeteries]);
+
+  useEffect(() => {
+    if (!restoredStateRef.current) return;
+
+    writeSavedPageState({
+      selectedCemeteryId: selectedCemetery?.id ?? null,
+      isPanelOpen,
+      isLayersPanelOpen,
+      layers,
+      infoCemeteryId,
+    });
+  }, [infoCemeteryId, isLayersPanelOpen, isPanelOpen, layers, selectedCemetery]);
 
   if (cLoading) {
     return <LoadingState />;
