@@ -22,7 +22,8 @@ const createApiClient = (): AxiosInstance => {
   // Request interceptor — место для добавления токена авторизации в будущем
   instance.interceptors.request.use(
     (config) => {
-      // TODO: attach auth token when auth-service is added
+      // Web-auth now uses HttpOnly cookies and Next route handlers.
+      // Add an Authorization header here later if browser-side write flows need it.
       // const token = getToken();
       // if (token) config.headers.Authorization = `Bearer ${token}`;
       return config;

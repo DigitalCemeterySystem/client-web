@@ -76,3 +76,49 @@ export interface BurialMarker {
   fullName: string;
   lngLat: LngLatTuple;
 }
+
+export type UserRole = 'USER' | 'MODERATOR' | 'ADMIN';
+export type UserStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'DISABLED';
+
+export interface UserProfileResponse {
+  id: number;
+  email: string;
+  username: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  role: UserRole;
+  status: UserStatus;
+  emailVerifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WebSessionResponse {
+  tokenType: string;
+  expiresIn: number;
+  user: UserProfileResponse;
+}
+
+export interface RegisterRequest {
+  email: string;
+  username: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface LoginRequest {
+  emailOrUsername: string;
+  password: string;
+}
+
+export interface UpdateProfileRequest {
+  username?: string;
+  avatarUrl?: string;
+  bio?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
