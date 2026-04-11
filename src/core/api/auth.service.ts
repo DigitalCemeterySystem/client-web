@@ -19,6 +19,14 @@ export class ApiClientError extends Error {
   }
 }
 
+const AUTH_CHANGED_EVENT = 'dcs-auth-changed';
+
+function emitAuthChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const data = await response.json();
   if (!response.ok) {
@@ -43,14 +51,18 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return parseResponse(response);
+    const session = await parseResponse<WebSessionResponse>(response);
+    emitAuthChanged();
+    return session;
   },
 
   async logout(): Promise<{ message: string }> {
     const response = await fetch('/api/auth/logout', {
       method: 'POST',
     });
-    return parseResponse(response);
+    const result = await parseResponse<{ message: string }>(response);
+    emitAuthChanged();
+    return result;
   },
 
   async getMe(): Promise<UserProfileResponse> {
@@ -64,7 +76,9 @@ export const authService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return parseResponse(response);
+    const profile = await parseResponse<UserProfileResponse>(response);
+    emitAuthChanged();
+    return profile;
   },
 
   async changePassword(payload: ChangePasswordRequest): Promise<{ message: string }> {
@@ -92,3 +106,5 @@ export const authService = {
     return parseResponse(response);
   },
 };
+
+export { AUTH_CHANGED_EVENT };

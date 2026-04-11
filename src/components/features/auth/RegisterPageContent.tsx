@@ -134,6 +134,23 @@ export default function RegisterPageContent() {
   const resendActionCooldownSeconds = resendCooldownSeconds;
 
   useEffect(() => {
+    let active = true;
+
+    authService
+      .getMe()
+      .then(() => {
+        if (active) {
+          window.location.replace('/profile');
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (registerCooldownSeconds <= 0 && resendCooldownSeconds <= 0) {
       return undefined;
     }

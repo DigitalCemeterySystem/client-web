@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Eye, EyeOff } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ApiClientError, authService } from '@/core/api/auth.service';
 
 type LoginFieldErrors = {
@@ -37,6 +37,23 @@ export default function LoginPageContent() {
     () => validateLoginForm(emailOrUsername, password),
     [emailOrUsername, password]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    authService
+      .getMe()
+      .then(() => {
+        if (active) {
+          window.location.replace('/profile');
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function getFieldError(field: keyof LoginFieldErrors) {
     if (fieldErrors[field]) {

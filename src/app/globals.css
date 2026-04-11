@@ -402,6 +402,22 @@ html.dark .map-container canvas {
   color: var(--ink);
 }
 
+@keyframes noticeFadeOut {
+  0% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.notice-fadeout {
+  animation: noticeFadeOut 3.6s ease forwards;
+}
+
 @media (max-width: 720px) {
   .burial-popup-card,
   .burial-popup-card--with-photo {
