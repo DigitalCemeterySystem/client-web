@@ -1,27 +1,27 @@
 ﻿import Link from 'next/link';
-import { ArrowRight, Map, Search, Users } from 'lucide-react';
+import { ArrowRight, Map, ShieldCheck, Users } from 'lucide-react';
 
 const quickAccess = [
   {
     href: '/cemeteries',
     title: 'Карта кладбищ',
-    description: 'Просмотр границ кладбищ, кварталов и структуры участков на интерактивной карте.',
+    description: 'Просмотр захоронений и границ кладбищ, их кварталов и структуры участков на интерактивной карте.',
     icon: Map,
     action: 'Открыть карту',
   },
   {
     href: '/burials',
     title: 'Реестр захоронений',
-    description: 'Карточки персон, даты, квартал и геопозиция захоронения в едином каталоге.',
+    description: 'Карточки усопших, даты, квартал и геопозиция захоронения в едином каталоге с удобными фильтрами.',
     icon: Users,
     action: 'Перейти в реестр',
   },
   {
-    href: '/search',
-    title: 'Поиск по данным',
-    description: 'Быстрый поиск по ФИО, датам и локациям для граждан и городских служб.',
-    icon: Search,
-    action: 'Запустить поиск',
+    href: '/login',
+    title: 'Преимущества авторизации',
+    description: 'Авторизованным пользователям доступны редактирование данных о захоронениях и добавление новых точек на карту.',
+    icon: ShieldCheck,
+    action: 'Перейти к авторизации',
   },
 ];
 
@@ -33,22 +33,25 @@ export default function Home() {
       <section className="relative mx-auto w-full max-w-6xl animate-fade-in">
         <div className="surface-card rounded-3xl px-6 py-12 sm:px-10 sm:py-16">
           <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--ink-muted)]">Digital Cemetery System</p>
-          <h1 className="display-font mt-4 max-w-4xl text-5xl leading-[1.02] text-[color:var(--ink)] sm:text-6xl lg:text-7xl">Цифровой доступ к памяти и реестрам захоронений</h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-[color:var(--ink-muted)] sm:text-lg">
-            Публичный веб-интерфейс для поиска, навигации и проверки данных о кладбищах. Спокойная подача,
-            понятная структура и минимальный визуальный шум.
+          <h1 className="display-font mt-4 max-w-5xl text-5xl leading-[1.02] text-[color:var(--ink)] sm:text-6xl lg:text-7xl">
+            <span className="block md:whitespace-nowrap">Цифровой доступ к кладбищам</span>
+            <span className="block md:whitespace-nowrap">и реестрам захоронений</span>
+          </h1>
+          <p className="mt-6 max-w-3xl text-base leading-relaxed text-[color:var(--ink-muted)] sm:text-lg">
+            Веб-интерфейс для поиска, навигации и редактирования данных о кладбищах.
+            <br className="hidden sm:block" />Спокойная подача, понятная структура и минимальный визуальный шум.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/search" className="pill-action inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
-              Начать поиск
+            <Link href="/cemeteries" className="pill-action inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
+              Открыть карту
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/cemeteries"
+              href="/burials"
               className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] bg-[color:var(--bg-elevated)] px-5 py-2.5 text-sm font-medium text-[color:var(--ink)] transition hover:bg-[color:var(--bg)]"
             >
-              Открыть карту
+              Перейти в реестр
             </Link>
           </div>
         </div>

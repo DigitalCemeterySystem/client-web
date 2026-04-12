@@ -110,7 +110,7 @@ export default function Navbar() {
             </div>
             <div>
               <p className="display-font text-2xl leading-none text-[color:var(--ink)]">DCS</p>
-              <p className="-mt-0.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">публичный веб</p>
+              <p className="-mt-0.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">цифровые кладбища</p>
             </div>
           </Link>
 

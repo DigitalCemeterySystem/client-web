@@ -19,6 +19,7 @@ interface CemeteryMapProps {
   fitToBurials?: boolean;
   autoPinSingleBurial?: boolean;
   autoPinNonce?: number;
+  syncNonce?: number;
   onPinnedPopupChange?: (burialId: number | null) => void;
 }
 
@@ -249,6 +250,29 @@ function fitToCemetery(map: maplibregl.Map, cemetery: CemeteryResponse) {
 
   const bounds = new maplibregl.LngLatBounds();
   cemetery.boundary.forEach((point) => bounds.extend([point.longitude, point.latitude]));
+
+  map.fitBounds(bounds, {
+    padding: 80,
+    duration: 900,
+    maxZoom: 13.8,
+  });
+}
+
+function fitToCemeteries(map: maplibregl.Map, cemeteries: CemeteryResponse[]) {
+  const validCemeteries = cemeteries.filter((cemetery) => cemetery.boundary.length);
+  if (!validCemeteries.length) return;
+
+  if (validCemeteries.length === 1) {
+    fitToCemetery(map, validCemeteries[0]);
+    return;
+  }
+
+  const bounds = new maplibregl.LngLatBounds();
+  validCemeteries.forEach((cemetery) => {
+    cemetery.boundary.forEach((point) => {
+      bounds.extend([point.longitude, point.latitude]);
+    });
+  });
 
   map.fitBounds(bounds, {
     padding: 80,
@@ -853,6 +877,7 @@ export default function CemeteryMap({
   fitToBurials = false,
   autoPinSingleBurial = false,
   autoPinNonce = 0,
+  syncNonce = 0,
   onPinnedPopupChange,
 }: CemeteryMapProps) {
   const { resolvedTheme } = useTheme();
@@ -869,19 +894,27 @@ export default function CemeteryMap({
   const suppressPopupCallbacksRef = useRef(false);
   const styleUrlRef = useRef(STYLES.light);
   const cameraBeforeStyleRef = useRef<CameraSnapshot | null>(null);
-  const pendingFocusRef = useRef<CemeteryResponse | null>(null);
+  const pendingFocusRef = useRef<CemeteryResponse[] | null>(null);
   const pendingBurialsFocusRef = useRef(false);
+  const lastFocusKeyRef = useRef<number | null>(null);
   const styleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showSectorsRef = useRef(showSectors);
   const showBoundaryRef = useRef(showBoundary);
   const showBurialsRef = useRef(showBurials);
   const autoPinSingleBurialRef = useRef(autoPinSingleBurial);
   const onPinnedPopupChangeRef = useRef(onPinnedPopupChange);
+  const hasExplicitCemeteriesProp = cemeteries !== undefined;
   const cemeteriesToRender = useMemo(() => {
-    const provided = cemeteries?.filter(Boolean) ?? [];
-    if (provided.length) return provided;
+    if (hasExplicitCemeteriesProp) {
+      return (cemeteries ?? []).filter(Boolean);
+    }
+
     return cemetery ? [cemetery] : [];
-  }, [cemeteries, cemetery]);
+  }, [hasExplicitCemeteriesProp, cemeteries, cemetery]);
+  const cemeterySelectionSignature = useMemo(
+    () => cemeteriesToRender.map((item) => item.id).sort((a, b) => a - b).join(','),
+    [cemeteriesToRender]
+  );
 
   const cemeteryRef = useRef(cemetery);
   const cemeteriesRef = useRef<CemeteryResponse[]>(cemeteriesToRender);
@@ -979,8 +1012,8 @@ export default function CemeteryMap({
         cameraBeforeStyleRef.current = null;
       }
 
-      if (pendingFocusRef.current) {
-        fitToCemetery(map, pendingFocusRef.current);
+      if (pendingFocusRef.current?.length) {
+        fitToCemeteries(map, pendingFocusRef.current);
         pendingFocusRef.current = null;
       }
       if (pendingBurialsFocusRef.current && burialsRef.current?.length) {
@@ -1202,17 +1235,20 @@ export default function CemeteryMap({
     }
 
     pendingBurialsFocusRef.current = false;
+    if (lastFocusKeyRef.current === focusKey) return;
+    lastFocusKeyRef.current = focusKey;
 
-    if (cemetery?.boundary?.length) {
+    if (cemeteriesToRender.length) {
       if (!map.isStyleLoaded()) {
-        pendingFocusRef.current = cemetery;
+        pendingFocusRef.current = cemeteriesToRender;
         return;
       }
 
-      fitToCemetery(map, cemetery);
+      fitToCemeteries(map, cemeteriesToRender);
       return;
     }
 
+    pendingFocusRef.current = null;
     closeSectorPopup(sectorPopupRef);
     setSelectedSectorId(null);
     map.flyTo({
@@ -1220,39 +1256,26 @@ export default function CemeteryMap({
       zoom: initialZoom,
       duration: 900,
     });
-  }, [burials, cemetery, fitToBurials, focusKey, initialCenter, initialZoom]);
+  }, [burials, cemeteriesToRender, fitToBurials, focusKey, initialCenter, initialZoom]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
     if (map.isStyleLoaded()) {
-      syncMapLayers(map, cemeteriesToRender, sectors, selectedSectorId, showBoundary, showSectors);
-      return;
-    }
-
-    const onStyleLoad = () => {
-      syncMapLayers(map, cemeteriesToRender, sectors, selectedSectorId, showBoundary, showSectors);
-    };
-    map.once('style.load', onStyleLoad);
-    return () => {
-      map.off('style.load', onStyleLoad);
-    };
-  }, [cemeteriesToRender, sectors, selectedSectorId, showBoundary, showSectors, mapReady, styleEpoch]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady) return;
-
-    if (map.isStyleLoaded()) {
-      syncBurialMarkers(
+      syncAllMapVisuals(
         map,
         markersRef,
         sectorPopupRef,
         burialPopupRef,
         pinnedBurialPopupRef,
         pendingReturnBurialIdRef,
+        cemeteriesToRender,
+        sectors,
         burials,
+        selectedSectorId,
+        showBoundary,
+        showSectors,
         showBurials,
         autoPinSingleBurialRef.current,
         autoPinNonce,
@@ -1265,14 +1288,19 @@ export default function CemeteryMap({
     }
 
     const onStyleLoad = () => {
-      syncBurialMarkers(
+      syncAllMapVisuals(
         map,
         markersRef,
         sectorPopupRef,
         burialPopupRef,
         pinnedBurialPopupRef,
         pendingReturnBurialIdRef,
+        cemeteriesToRender,
+        sectors,
         burials,
+        selectedSectorId,
+        showBoundary,
+        showSectors,
         showBurials,
         autoPinSingleBurialRef.current,
         autoPinNonce,
@@ -1286,7 +1314,19 @@ export default function CemeteryMap({
     return () => {
       map.off('style.load', onStyleLoad);
     };
-  }, [burials, showBurials, mapReady, styleEpoch, autoPinNonce]);
+  }, [
+    cemeteriesToRender,
+    sectors,
+    burials,
+    selectedSectorId,
+    showBoundary,
+    showSectors,
+    showBurials,
+    mapReady,
+    styleEpoch,
+    autoPinNonce,
+    syncNonce,
+  ]);
 
   useEffect(() => {
     if (showSectors) return;
@@ -1299,7 +1339,7 @@ export default function CemeteryMap({
     closeSectorPopup(sectorPopupRef);
     closeBurialPopup(burialPopupRef);
     pinnedBurialPopupRef.current = null;
-  }, [cemetery?.id]);
+  }, [cemeterySelectionSignature]);
 
   return (
     <div className="relative h-full w-full">

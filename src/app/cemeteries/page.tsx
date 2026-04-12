@@ -38,7 +38,7 @@ const DEFAULT_LAYERS = {
 const CEMETERIES_PAGE_STATE_KEY = 'cemeteries:page-state';
 
 type CemeteriesPageState = {
-  selectedCemeteryId: number | null;
+  selectedCemeteryIds: number[];
   isPanelOpen: boolean;
   isLayersPanelOpen: boolean;
   layers: typeof DEFAULT_LAYERS;
@@ -52,9 +52,17 @@ function readSavedPageState(): CemeteriesPageState | null {
     const rawValue = window.sessionStorage.getItem(CEMETERIES_PAGE_STATE_KEY);
     if (!rawValue) return null;
 
-    const parsed = JSON.parse(rawValue) as Partial<CemeteriesPageState>;
+    const parsed = JSON.parse(rawValue) as Partial<CemeteriesPageState> & {
+      selectedCemeteryId?: unknown;
+    };
+    const selectedCemeteryIds = Array.isArray(parsed.selectedCemeteryIds)
+      ? parsed.selectedCemeteryIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+      : Number.isFinite(Number(parsed.selectedCemeteryId))
+        ? [Number(parsed.selectedCemeteryId)]
+        : [];
+
     return {
-      selectedCemeteryId: Number.isFinite(parsed.selectedCemeteryId) ? Number(parsed.selectedCemeteryId) : null,
+      selectedCemeteryIds,
       isPanelOpen: parsed.isPanelOpen ?? true,
       isLayersPanelOpen: parsed.isLayersPanelOpen ?? false,
       layers: {
@@ -79,9 +87,13 @@ export default function CemeteriesPage() {
   const pendingStateRef = useRef<CemeteriesPageState | null>(null);
   const restoredStateRef = useRef(false);
 
-  const [selectedCemetery, setSelectedCemetery] = useState<CemeteryResponse | null>(null);
-  const { burials, loading: bLoading } = useBurials(selectedCemetery?.id ?? null);
+  const [selectedCemeteryIds, setSelectedCemeteryIds] = useState<number[]>([]);
+  const [focusedCemeteryId, setFocusedCemeteryId] = useState<number | null>(null);
+  const hasSelectedCemeteries = selectedCemeteryIds.length > 0;
+  const { burials, loading: bLoading } = useBurials();
   const [focusKey, setFocusKey] = useState(0);
+  const [burialsSyncNonce, setBurialsSyncNonce] = useState(0);
+  const prevBurialsLoadingRef = useRef(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
@@ -102,8 +114,31 @@ export default function CemeteriesPage() {
     [cemeteries]
   );
 
-  const resetSelection = () => {
-    setSelectedCemetery(null);
+  const selectedCemeteryIdsSet = useMemo(() => new Set(selectedCemeteryIds), [selectedCemeteryIds]);
+
+  const selectedCemeteries = useMemo(
+    () => cemeteries.filter((cemetery) => selectedCemeteryIdsSet.has(cemetery.id)),
+    [cemeteries, selectedCemeteryIdsSet]
+  );
+
+  const selectedSectors = useMemo(
+    () => selectedCemeteries.flatMap((cemetery) => cemetery.sectors ?? []),
+    [selectedCemeteries]
+  );
+
+  const selectedBurials = useMemo(() => {
+    if (!selectedCemeteryIdsSet.size) return [];
+    return burials.filter((burial) => burial.cemeteryId !== null && selectedCemeteryIdsSet.has(burial.cemeteryId));
+  }, [burials, selectedCemeteryIdsSet]);
+
+  const focusedCemetery = useMemo(
+    () => cemeteries.find((cemetery) => cemetery.id === focusedCemeteryId) ?? null,
+    [cemeteries, focusedCemeteryId]
+  );
+
+  const clearAllSelection = () => {
+    setSelectedCemeteryIds([]);
+    setFocusedCemeteryId(null);
     setLayers(DEFAULT_LAYERS);
     setIsLayersPanelOpen(false);
     setInfoCemeteryId(null);
@@ -111,9 +146,15 @@ export default function CemeteriesPage() {
   };
 
   const selectCemetery = (cemetery: CemeteryResponse) => {
-    setSelectedCemetery(cemetery);
+    setSelectedCemeteryIds((current) => (current.includes(cemetery.id) ? current : [...current, cemetery.id]));
+    setFocusedCemeteryId(cemetery.id);
     setIsLayersPanelOpen(true);
     setFocusKey((prev) => prev + 1);
+  };
+
+  const removeCemeterySelection = (cemeteryId: number) => {
+    setSelectedCemeteryIds((current) => current.filter((id) => id !== cemeteryId));
+    setInfoCemeteryId((current) => (current === cemeteryId ? null : current));
   };
 
   useEffect(() => {
@@ -125,12 +166,11 @@ export default function CemeteriesPage() {
 
     if (!savedState) return;
 
-    const restoredCemetery =
-      savedState.selectedCemeteryId === null
-        ? null
-        : cemeteries.find((cemetery) => cemetery.id === savedState.selectedCemeteryId) ?? null;
+    const availableIds = new Set(cemeteries.map((cemetery) => cemetery.id));
+    const restoredCemeteryIds = savedState.selectedCemeteryIds.filter((id) => availableIds.has(id));
 
-    setSelectedCemetery(restoredCemetery);
+    setSelectedCemeteryIds(restoredCemeteryIds);
+    setFocusedCemeteryId(restoredCemeteryIds.at(-1) ?? null);
     setIsPanelOpen(savedState.isPanelOpen);
     setIsLayersPanelOpen(savedState.isLayersPanelOpen);
     setLayers(savedState.layers);
@@ -143,13 +183,26 @@ export default function CemeteriesPage() {
     if (!restoredStateRef.current) return;
 
     writeSavedPageState({
-      selectedCemeteryId: selectedCemetery?.id ?? null,
+      selectedCemeteryIds,
       isPanelOpen,
       isLayersPanelOpen,
       layers,
       infoCemeteryId,
     });
-  }, [infoCemeteryId, isLayersPanelOpen, isPanelOpen, layers, selectedCemetery]);
+  }, [infoCemeteryId, isLayersPanelOpen, isPanelOpen, layers, selectedCemeteryIds]);
+
+  useEffect(() => {
+    if (focusedCemeteryId === null) return;
+    if (selectedCemeteryIdsSet.has(focusedCemeteryId)) return;
+    setFocusedCemeteryId(selectedCemeteryIds.at(-1) ?? null);
+  }, [focusedCemeteryId, selectedCemeteryIds, selectedCemeteryIdsSet]);
+
+  useEffect(() => {
+    if (prevBurialsLoadingRef.current && !bLoading) {
+      setBurialsSyncNonce((current) => current + 1);
+    }
+    prevBurialsLoadingRef.current = bLoading;
+  }, [bLoading]);
 
   if (cLoading) {
     return <LoadingState />;
@@ -187,9 +240,30 @@ export default function CemeteriesPage() {
           </div>
         </div>
 
+        <div className="shrink-0 border-b border-[color:var(--line)] px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-[color:var(--ink-muted)]">
+              Выбрано кладбищ: <span className="text-[color:var(--ink)]">{selectedCemeteryIds.length}</span>
+            </p>
+            <button
+              type="button"
+              onClick={clearAllSelection}
+              disabled={!hasSelectedCemeteries}
+              className={cn(
+                'rounded-lg border px-3 py-1.5 text-xs font-semibold transition',
+                hasSelectedCemeteries
+                  ? 'border-[color:var(--line)] bg-[color:var(--bg-panel)] text-[color:var(--ink-muted)] hover:text-[color:var(--ink)]'
+                  : 'cursor-not-allowed border-[color:var(--line)]/60 bg-[color:var(--bg-elevated)] text-[color:var(--ink-muted)]/60'
+              )}
+            >
+              Отменить весь выбор
+            </button>
+          </div>
+        </div>
+
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {cemeteries.map((cemetery) => {
-            const isSelected = selectedCemetery?.id === cemetery.id;
+            const isSelected = selectedCemeteryIdsSet.has(cemetery.id);
             const burialCount = burialCountsByCemetery.get(cemetery.id) ?? 0;
             const isInfoOpen = infoCemeteryId === cemetery.id;
 
@@ -244,7 +318,7 @@ export default function CemeteriesPage() {
                   <div className="mt-4 flex justify-end">
                     <button
                       type="button"
-                      onClick={resetSelection}
+                      onClick={() => removeCemeterySelection(cemetery.id)}
                       className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-3 py-2 text-xs font-semibold text-[color:var(--ink-muted)] transition hover:text-[color:var(--ink)]"
                     >
                       <X size={14} />
@@ -311,17 +385,19 @@ export default function CemeteriesPage() {
 
         <div className="h-full w-full">
           <CemeteryMap
-            cemetery={selectedCemetery}
-            sectors={selectedCemetery?.sectors}
-            burials={burials}
+            cemetery={focusedCemetery}
+            cemeteries={selectedCemeteries}
+            sectors={selectedSectors}
+            burials={selectedBurials}
             focusKey={focusKey}
             showBoundary={layers.boundary}
             showSectors={layers.sectors}
             showBurials={layers.burials}
+            syncNonce={burialsSyncNonce}
           />
         </div>
 
-        {bLoading && (
+        {hasSelectedCemeteries && bLoading && (
           <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-4 py-2 shadow-lg">
             <Loader2 size={16} className="animate-spin text-[color:var(--accent)]" />
             <span className="text-xs font-semibold text-[color:var(--ink-muted)]">Загрузка захоронений...</span>
