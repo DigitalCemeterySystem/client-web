@@ -3,13 +3,14 @@ import {
   applySessionCookies,
   clearSessionCookies,
   fetchBackend,
-  readAccessToken,
-  refreshSessionIfNeeded,
+  readSessionTokens,
+  refreshSession,
 } from '@/core/auth/session';
 
 export async function PATCH(request: NextRequest) {
+  const { accessToken: initialAccessToken, refreshToken } = await readSessionTokens();
   const body = await request.text();
-  let accessToken = await readAccessToken();
+  let accessToken = initialAccessToken;
 
   const requestBackend = (token: string | null) =>
     fetchBackend('/api/auth/me/password', {
@@ -25,7 +26,7 @@ export async function PATCH(request: NextRequest) {
   let refreshedSession = null;
 
   if (backendResponse.status === 401) {
-    refreshedSession = await refreshSessionIfNeeded();
+    refreshedSession = await refreshSession(refreshToken);
     if (!refreshedSession) {
       const unauthorizedResponse = NextResponse.json({ message: 'Необходима авторизация.' }, { status: 401 });
       clearSessionCookies(unauthorizedResponse);

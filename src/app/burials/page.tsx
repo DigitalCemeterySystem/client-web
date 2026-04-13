@@ -281,16 +281,16 @@ export default function BurialsPage() {
   const mapBurials = useMemo(() => (selectedBurialForMap ? [selectedBurialForMap] : []), [selectedBurialForMap]);
 
   const mapCemeteries = useMemo(() => {
-    if (!selectedBurialForMap || !showMapBoundaries) return [];
+    if (!selectedBurialForMap) return [];
     return cemeteries.filter((cemetery) => cemetery.id === selectedBurialForMap.cemeteryId);
-  }, [cemeteries, selectedBurialForMap, showMapBoundaries]);
+  }, [cemeteries, selectedBurialForMap]);
 
   const mapSectors = useMemo<SectorResponse[]>(() => {
-    if (!selectedBurialForMap || !showMapSectors) return [];
+    if (!selectedBurialForMap) return [];
 
     const cemetery = cemeteries.find((item) => item.id === selectedBurialForMap.cemeteryId);
     return cemetery?.sectors ?? [];
-  }, [cemeteries, selectedBurialForMap, showMapSectors]);
+  }, [cemeteries, selectedBurialForMap]);
 
   const activeFiltersCount = useMemo(
     () => Object.values(filters).reduce((count, value) => count + (value ? 1 : 0), 0),

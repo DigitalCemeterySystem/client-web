@@ -2,8 +2,9 @@
 
 import { burialService } from '@/core/api/burial.service';
 import { cemeteryService } from '@/core/api/cemetery.service';
+import AuthRequiredModal from '@/components/ui/AuthRequiredModal';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import type { BurialResponse } from '@/types';
-import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   BookOpen,
@@ -14,9 +15,10 @@ import {
   Landmark,
   Loader2,
   LocateFixed,
+  Pencil,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 function formatDate(dateValue: string | null): string {
   if (!dateValue) return 'Не указана';
@@ -122,12 +124,16 @@ async function copyTextToClipboard(value: string) {
 
 export default function BurialDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const { user } = useCurrentUser();
+
   const [burial, setBurial] = useState<BurialResponse | null>(null);
   const [cemeteryAddress, setCemeteryAddress] = useState<string | null>(null);
   const [photoVisible, setPhotoVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [coordinatesCopied, setCoordinatesCopied] = useState(false);
+  const [authRequiredOpen, setAuthRequiredOpen] = useState(false);
+  const [createRequestPromptOpen, setCreateRequestPromptOpen] = useState(false);
 
   const navigateBackToMap = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -224,6 +230,21 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const handleOpenCreateRequest = () => {
+    if (!user) {
+      setAuthRequiredOpen(true);
+      return;
+    }
+
+    setCreateRequestPromptOpen(true);
+  };
+
+  const handleCreateRequest = () => {
+    if (!burial) return;
+    setCreateRequestPromptOpen(false);
+    router.push(`/add/burial?mode=edit&burialId=${burial.id}`);
+  };
+
   if (loading) {
     return (
       <section className="flex min-h-[calc(100vh-64px)] items-center justify-center px-6">
@@ -263,9 +284,21 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
         Назад
       </button>
 
-      <article className="surface-card mt-5 overflow-hidden rounded-[2rem] p-5 sm:p-6 lg:p-8">
+      <article className="surface-card relative mt-5 overflow-hidden rounded-[2rem] p-5 sm:p-6 lg:p-8">
+        <div className="absolute right-5 top-5 z-20">
+          <button
+            type="button"
+            onClick={handleOpenCreateRequest}
+            className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[color:var(--accent)] text-white shadow-[0_14px_30px_rgba(16,185,129,0.35)] transition hover:scale-105 hover:bg-[color:var(--accent-strong)]"
+            aria-label="Создать заявку на редактирование"
+            title="Создать заявку на редактирование"
+          >
+            <Pencil className="h-6 w-6" />
+          </button>
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-[minmax(300px,380px)_1fr] lg:items-stretch">
-          <div className="overflow-hidden rounded-[1.5rem] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] lg:self-start">
+          <div className="relative overflow-hidden rounded-[1.5rem] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] lg:self-start">
             {burialPhoto && photoVisible ? (
               <a
                 href={burialPhoto.href}
@@ -303,7 +336,9 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--ink-muted)]">
                 Информация об усопшем
               </p>
-              <h1 className="display-font mt-3 text-4xl leading-tight text-[color:var(--ink)]">{burial.fullName}</h1>
+              <div className="mt-3 flex items-start justify-between gap-3 pr-16">
+                <h1 className="display-font text-4xl leading-tight text-[color:var(--ink)]">{burial.fullName}</h1>
+              </div>
             </div>
 
             <div className="grid flex-1 gap-3 md:grid-cols-2 md:items-start">
@@ -401,6 +436,13 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
       </article>
+
+      <AuthRequiredModal open={authRequiredOpen} onClose={() => setAuthRequiredOpen(false)} />
+      <CreateEditRequestModal
+        open={createRequestPromptOpen}
+        onCancel={() => setCreateRequestPromptOpen(false)}
+        onConfirm={handleCreateRequest}
+      />
     </section>
   );
 }
@@ -418,11 +460,50 @@ function InfoCard({
 }) {
   return (
     <div className={`rounded-[1.25rem] border border-[color:var(--line)] bg-[color:var(--bg-elevated)] p-4 ${className}`}>
-      <div className="flex items-center gap-2 text-[color:var(--ink-muted)]">
-        {icon}
-        <span className="text-xs font-semibold uppercase tracking-[0.14em]">{title}</span>
+      <div className="flex items-center justify-between gap-3 text-[color:var(--ink-muted)]">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-xs font-semibold uppercase tracking-[0.14em]">{title}</span>
+        </div>
       </div>
       <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+function CreateEditRequestModal({
+  open,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[91] flex items-center justify-center px-4">
+      <button className="absolute inset-0 bg-black/35 backdrop-blur-[1px]" onClick={onCancel} aria-label="Закрыть окно" />
+      <section className="surface-card relative z-[92] w-full max-w-md rounded-3xl p-6 sm:p-7">
+        <h3 className="text-xl font-semibold text-[color:var(--ink)]">Редактирование захоронения</h3>
+        <p className="mt-3 text-sm leading-relaxed text-[color:var(--ink-muted)]">
+          Вы хотите создать заявку на редактирование захоронения?
+        </p>
+
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-5 py-2.5 text-sm font-semibold text-[color:var(--ink)] transition hover:bg-[color:var(--bg-elevated)]"
+          >
+            Отмена
+          </button>
+          <button type="button" onClick={onConfirm} className="pill-action px-5 py-2.5 text-sm font-semibold">
+            Создать заявку
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

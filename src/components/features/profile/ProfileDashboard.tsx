@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Eye,
   EyeOff,
@@ -11,6 +12,7 @@ import {
   LogOut,
   Pencil,
   PencilLine,
+  ShieldCheck,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -21,8 +23,9 @@ import { normalizeExternalImageUrl, resolveImageSource } from '@/core/utils/imag
 import { UserProfileResponse } from '@/types';
 import UserAvatar from '@/components/ui/UserAvatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import ChangeRequestsPanel from '@/components/features/requests/ChangeRequestsPanel';
 
-type ProfileSection = 'profile' | 'requests';
+type ProfileSection = 'profile' | 'myRequests' | 'usersRequests';
 
 type AvatarCrop = {
   x: number;
@@ -166,6 +169,7 @@ function validatePasswordForm(form: {
 }
 
 export default function ProfileDashboard({ section }: { section: ProfileSection }) {
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<UserProfileResponse | null>(null);
   const [profileForm, setProfileForm] = useState({ username: '', avatarUrl: '', bio: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
@@ -198,8 +202,18 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
     originY: number;
   } | null>(null);
 
-  const pageTitle = section === 'profile' ? 'Профиль' : 'Мои заявки';
+  const pageTitle = useMemo(() => {
+    if (section === 'usersRequests') return 'Заявки пользователей';
+    if (section === 'myRequests') return 'Мои заявки';
+    return 'Профиль';
+  }, [section]);
   const avatarPreviewSource = useMemo(() => resolveImageSource(avatarDraftUrl), [avatarDraftUrl]);
+  const initialRequestId = useMemo(() => {
+    const raw = searchParams.get('requestId');
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [searchParams]);
 
   useEffect(() => {
     let active = true;
@@ -500,6 +514,7 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
   }
 
   const rolePresentation = getRolePresentation(user.role);
+  const canModerate = user.role === 'MODERATOR' || user.role === 'ADMIN';
 
   return (
     <>
@@ -543,7 +558,7 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
                 href="/profile/requests"
                 className={[
                   'mt-2 flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition',
-                  section === 'requests'
+                  section === 'myRequests'
                     ? 'bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)]'
                     : 'text-[color:var(--ink)] hover:bg-[color:var(--bg-elevated)]',
                 ].join(' ')}
@@ -551,6 +566,20 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
                 <FileText className="h-4 w-4" />
                 Мои заявки
               </Link>
+              {canModerate && (
+                <Link
+                  href="/profile/requests/users"
+                  className={[
+                    'mt-2 flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition',
+                    section === 'usersRequests'
+                      ? 'bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)]'
+                      : 'text-[color:var(--ink)] hover:bg-[color:var(--bg-elevated)]',
+                  ].join(' ')}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Заявки пользователей
+                </Link>
+              )}
             </section>
 
             <section className="surface-card rounded-3xl p-3">
@@ -710,13 +739,18 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
                   <button className="pill-action mt-5 px-5 py-2.5 text-sm font-semibold">Обновить пароль</button>
                 </form>
               </>
-            ) : (
+            ) : section === 'usersRequests' && !canModerate ? (
               <section className="surface-muted rounded-3xl p-6 sm:p-8">
-                <h2 className="text-xl font-semibold text-[color:var(--ink)]">Мои заявки</h2>
-                <p className="mt-4 text-sm leading-relaxed text-[color:var(--ink-muted)]">
-                  Раздел заявок будет подключен на следующем этапе. Здесь появятся ваши заявки на добавление и редактирование данных.
+                <p className="text-sm text-[color:var(--ink-muted)]">
+                  Раздел «Заявки пользователей» доступен только модераторам и администраторам.
                 </p>
               </section>
+            ) : (
+              <ChangeRequestsPanel
+                currentUser={user}
+                scope={section === 'usersRequests' ? 'users' : 'my'}
+                initialRequestId={initialRequestId}
+              />
             )}
           </section>
         </div>

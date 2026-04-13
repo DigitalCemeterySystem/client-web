@@ -68,6 +68,63 @@ export interface BurialRequest {
   sectorId: number;
 }
 
+export type ChangeRequestTargetType = 'BURIAL' | 'CEMETERY';
+export type ChangeRequestOperationType = 'ADD' | 'EDIT';
+export type ChangeRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type BurialChangeFieldKey =
+  | 'PHOTO_URL'
+  | 'FULL_NAME'
+  | 'BIRTH_DATE'
+  | 'DEATH_DATE'
+  | 'LATITUDE'
+  | 'LONGITUDE'
+  | 'BIOGRAPHY'
+  | 'CEMETERY_NAME'
+  | 'SECTOR_NAME';
+
+export interface BurialChangeDraftRequest {
+  fullName?: string;
+  birthDate?: string | null;
+  deathDate?: string | null;
+  clearBirthDate?: boolean;
+  clearDeathDate?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  photoUrl?: string | null;
+  biography?: string | null;
+  clearPhotoUrl?: boolean;
+  clearBiography?: boolean;
+}
+
+export interface ChangeRequestFieldResponse {
+  fieldKey: BurialChangeFieldKey;
+  fieldLabel: string;
+  beforeValue: string | null;
+  afterValue: string | null;
+}
+
+export interface ChangeRequestResponse {
+  id: number;
+  targetType: ChangeRequestTargetType;
+  operationType: ChangeRequestOperationType;
+  status: ChangeRequestStatus;
+  authorUserId: number;
+  authorUsername: string;
+  authorRole: UserRole;
+  burialId: number | null;
+  burialLabel: string | null;
+  previewLatitude: number | null;
+  previewLongitude: number | null;
+  rejectionReason: string | null;
+  reviewedByUserId: number | null;
+  reviewedByUsername: string | null;
+  reviewedByRole: UserRole | null;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt: string | null;
+  fields: ChangeRequestFieldResponse[];
+}
+
 // ── GeoJSON helpers ───────────────────────────────────────────────────────────
 export type LngLatTuple = [number, number]; // [longitude, latitude]
 

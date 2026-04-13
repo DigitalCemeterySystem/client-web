@@ -1,15 +1,17 @@
 ﻿'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
-import { Map, Users, Trees, Sun, Moon, ChevronDown, UserRound, FileText, LogOut } from 'lucide-react';
+import { Map, Users, Sun, Moon, ChevronDown, UserRound, FileText, LogOut, CirclePlus, MapPinned, Landmark, ShieldCheck, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authService, AUTH_CHANGED_EVENT } from '@/core/api/auth.service';
 import { getRolePresentation } from '@/core/auth/role-presentation';
 import { UserProfileResponse } from '@/types';
 import UserAvatar from '@/components/ui/UserAvatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import AuthRequiredModal from '@/components/ui/AuthRequiredModal';
 
 const links = [
   { href: '/cemeteries', label: 'Кладбища', icon: Map },
@@ -19,12 +21,15 @@ const links = [
 export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<UserProfileResponse | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [authRequiredOpen, setAuthRequiredOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const loadCurrentUser = useCallback(async () => {
@@ -55,6 +60,8 @@ export default function Navbar() {
 
   useEffect(() => {
     setMenuOpen(false);
+    setAddDialogOpen(false);
+    setAuthRequiredOpen(false);
     loadCurrentUser();
   }, [pathname, loadCurrentUser]);
 
@@ -98,16 +105,36 @@ export default function Navbar() {
     return bio || 'Описание профиля пока не заполнено.';
   }
 
+  function openAddFlow() {
+    if (!authReady) return;
+    if (!user) {
+      setAuthRequiredOpen(true);
+      return;
+    }
+    setAddDialogOpen(true);
+  }
+
+  function navigateToAddPath(path: string) {
+    setAddDialogOpen(false);
+    router.push(path);
+  }
+
   const rolePresentation = user ? getRolePresentation(user.role) : null;
+  const canModerate = user?.role === 'MODERATOR' || user?.role === 'ADMIN';
 
   return (
     <>
       <nav className="fixed inset-x-0 top-0 z-50 border-b border-[color:var(--line)]/80 bg-[color:var(--bg)]/75 backdrop-blur-md">
         <div className="flex h-16 w-full items-center px-4 sm:px-6">
           <Link href="/" className="group flex flex-shrink-0 items-center gap-3">
-            <div className="rounded-xl bg-[color:var(--accent)]/15 p-2 text-[color:var(--accent)] transition group-hover:bg-[color:var(--accent)]/20">
-              <Trees className="h-5 w-5" />
-            </div>
+            <Image
+              src="/dcs-logo.svg"
+              alt="Логотип DCS"
+              width={40}
+              height={40}
+              className="h-10 w-10 flex-shrink-0 object-contain transition-transform group-hover:scale-[1.03]"
+              priority
+            />
             <div>
               <p className="display-font text-2xl leading-none text-[color:var(--ink)]">DCS</p>
               <p className="-mt-0.5 text-[10px] uppercase tracking-[0.2em] text-[color:var(--ink-muted)]">цифровые кладбища</p>
@@ -124,9 +151,28 @@ export default function Navbar() {
                 active={pathname === item.href}
               />
             ))}
+            <button
+              type="button"
+              onClick={openAddFlow}
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm text-[color:var(--ink-muted)] transition hover:bg-[color:var(--bg-elevated)] hover:text-[color:var(--ink)]"
+              aria-label="Добавить"
+            >
+              <CirclePlus className="h-4 w-4" />
+              <span>Добавить</span>
+            </button>
           </div>
 
           <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={openAddFlow}
+              className="inline-flex items-center gap-2 rounded-full border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-3 py-1.5 text-xs font-semibold text-[color:var(--ink-muted)] transition hover:bg-[color:var(--bg-elevated)] hover:text-[color:var(--ink)] sm:hidden"
+              aria-label="Добавить"
+            >
+              <CirclePlus className="h-4 w-4" />
+              <span>Добавить</span>
+            </button>
+
             <div className="hidden items-center gap-1 rounded-full border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-1 py-1 sm:flex lg:hidden">
               {links.map((item) => (
                 <NavLink
@@ -138,6 +184,15 @@ export default function Navbar() {
                   compact
                 />
               ))}
+              <button
+                type="button"
+                onClick={openAddFlow}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-[color:var(--ink-muted)] transition hover:bg-[color:var(--bg-elevated)] hover:text-[color:var(--ink)] sm:text-sm"
+                aria-label="Добавить"
+              >
+                <CirclePlus className="h-4 w-4" />
+                <span>Добавить</span>
+              </button>
             </div>
 
             {mounted && (
@@ -215,6 +270,16 @@ export default function Navbar() {
                         <FileText className="h-4 w-4 text-[color:var(--ink-muted)]" />
                         Мои заявки
                       </Link>
+                      {canModerate && (
+                        <Link
+                          href="/profile/requests/users"
+                          className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ink)] transition hover:bg-[color:var(--bg-elevated)]"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          <ShieldCheck className="h-4 w-4 text-[color:var(--ink-muted)]" />
+                          Заявки пользователей
+                        </Link>
+                      )}
                     </section>
 
                     <section className="mt-2 rounded-2xl border border-[color:var(--line)] bg-[color:var(--bg-panel)] p-2">
@@ -255,6 +320,54 @@ export default function Navbar() {
         pending={logoutPending}
         onCancel={() => setShowLogoutDialog(false)}
         onConfirm={handleLogoutConfirm}
+      />
+
+      {addDialogOpen && (
+        <div className="fixed inset-0 z-[94] flex items-center justify-center px-4">
+          <button
+            type="button"
+            onClick={() => setAddDialogOpen(false)}
+            className="absolute inset-0 bg-black/35 backdrop-blur-[1px]"
+            aria-label="Закрыть окно выбора"
+          />
+          <section className="surface-card relative z-[95] w-full max-w-xl rounded-3xl p-6 sm:p-7">
+            <button
+              type="button"
+              onClick={() => setAddDialogOpen(false)}
+              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--line)] bg-[color:var(--bg-panel)] text-[color:var(--ink-muted)] transition hover:bg-[color:var(--bg-elevated)] hover:text-[color:var(--ink)]"
+              aria-label="Закрыть окно"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--ink-muted)]">Что добавить</p>
+            <h3 className="mt-2 text-2xl font-semibold text-[color:var(--ink)]">Новая заявка</h3>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => navigateToAddPath('/add/burial')}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-5 py-4 text-sm font-semibold text-[color:var(--ink)] transition hover:bg-[color:var(--bg-elevated)]"
+              >
+                <MapPinned className="h-4 w-4 text-[color:var(--accent)]" />
+                Захоронение
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateToAddPath('/add/cemetery')}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-[color:var(--line)] bg-[color:var(--bg-panel)] px-5 py-4 text-sm font-semibold text-[color:var(--ink)] transition hover:bg-[color:var(--bg-elevated)]"
+              >
+                <Landmark className="h-4 w-4 text-[color:var(--accent)]" />
+                Кладбище
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      <AuthRequiredModal
+        open={authRequiredOpen}
+        onClose={() => setAuthRequiredOpen(false)}
+        title="Нужна авторизация"
+        description="Сначала авторизуйтесь, чтобы отправлять заявки на изменение данных."
       />
     </>
   );

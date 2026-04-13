@@ -2,15 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   applySessionCookies,
   clearSessionCookies,
-  fetchBackend,
-  readSessionTokens,
   refreshSession,
 } from '@/core/auth/session';
 
-async function authorizedRequest(method: 'GET' | 'PATCH', accessToken: string | null, refreshToken: string | null, body?: string) {
+type SupportedMethod = 'GET' | 'POST' | 'PUT';
+
+const CHANGE_REQUESTS_API_URL =
+  process.env.CHANGE_REQUESTS_API_URL ||
+  (process.env.NEXT_PUBLIC_API_URL?.includes('api-gateway')
+    ? 'http://cemetery-management-service:8081'
+    : 'http://localhost:8081');
+
+async function fetchChangeRequestBackend(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (!headers.has('Content-Type') && init.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return fetch(`${CHANGE_REQUESTS_API_URL}${path}`, {
+    ...init,
+    headers,
+    cache: 'no-store',
+  });
+}
+
+export async function proxyChangeRequest(
+  request: NextRequest,
+  backendPath: string,
+  method: SupportedMethod
+) {
+  const initialAccessToken = request.cookies.get('dcs_access_token')?.value ?? null;
+  const refreshToken = request.cookies.get('dcs_refresh_token')?.value ?? null;
+  const body = method === 'GET' ? undefined : await request.text();
+  let accessToken = initialAccessToken;
 
   const requestBackend = (token: string | null) =>
-    fetchBackend('/api/auth/me', {
+    fetchChangeRequestBackend(backendPath, {
       method,
       body,
       headers: {
@@ -29,6 +56,7 @@ async function authorizedRequest(method: 'GET' | 'PATCH', accessToken: string | 
       clearSessionCookies(unauthorizedResponse);
       return unauthorizedResponse;
     }
+
     accessToken = refreshedSession.accessToken;
     backendResponse = await requestBackend(accessToken);
   }
@@ -36,7 +64,9 @@ async function authorizedRequest(method: 'GET' | 'PATCH', accessToken: string | 
   const payload = await backendResponse.text();
   const response = new NextResponse(payload, {
     status: backendResponse.status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': backendResponse.headers.get('Content-Type') || 'application/json',
+    },
   });
 
   if (refreshedSession) {
@@ -48,15 +78,4 @@ async function authorizedRequest(method: 'GET' | 'PATCH', accessToken: string | 
   }
 
   return response;
-}
-
-export async function GET() {
-  const { accessToken, refreshToken } = await readSessionTokens();
-  return authorizedRequest('GET', accessToken, refreshToken);
-}
-
-export async function PATCH(request: NextRequest) {
-  const { accessToken, refreshToken } = await readSessionTokens();
-  const body = await request.text();
-  return authorizedRequest('PATCH', accessToken, refreshToken, body);
 }

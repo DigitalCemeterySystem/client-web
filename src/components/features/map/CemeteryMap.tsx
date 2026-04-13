@@ -18,6 +18,7 @@ interface CemeteryMapProps {
   focusKey?: number;
   fitToBurials?: boolean;
   autoPinSingleBurial?: boolean;
+  singleBurialVerticalAnchor?: number;
   autoPinNonce?: number;
   syncNonce?: number;
   onPinnedPopupChange?: (burialId: number | null) => void;
@@ -281,7 +282,7 @@ function fitToCemeteries(map: maplibregl.Map, cemeteries: CemeteryResponse[]) {
   });
 }
 
-function fitMapToBurials(map: maplibregl.Map, burials: BurialResponse[]) {
+function fitMapToBurials(map: maplibregl.Map, burials: BurialResponse[], singleBurialVerticalAnchor = 0.75) {
   const coordinates = burials.reduce<[number, number][]>((acc, burial) => {
     const latitude = Number(burial.latitude);
     const longitude = Number(burial.longitude);
@@ -305,9 +306,10 @@ function fitMapToBurials(map: maplibregl.Map, burials: BurialResponse[]) {
     });
 
     const markerPoint = map.project(markerPosition);
+    const anchor = Math.min(Math.max(singleBurialVerticalAnchor, 0.05), 0.95);
     const targetPoint = {
       x: width * 0.5,
-      y: height * 0.75,
+      y: height * anchor,
     };
 
     const shiftX = targetPoint.x - markerPoint.x;
@@ -876,6 +878,7 @@ export default function CemeteryMap({
   focusKey = 0,
   fitToBurials = false,
   autoPinSingleBurial = false,
+  singleBurialVerticalAnchor = 0.75,
   autoPinNonce = 0,
   syncNonce = 0,
   onPinnedPopupChange,
@@ -902,6 +905,7 @@ export default function CemeteryMap({
   const showBoundaryRef = useRef(showBoundary);
   const showBurialsRef = useRef(showBurials);
   const autoPinSingleBurialRef = useRef(autoPinSingleBurial);
+  const singleBurialVerticalAnchorRef = useRef(singleBurialVerticalAnchor);
   const onPinnedPopupChangeRef = useRef(onPinnedPopupChange);
   const hasExplicitCemeteriesProp = cemeteries !== undefined;
   const cemeteriesToRender = useMemo(() => {
@@ -954,13 +958,14 @@ export default function CemeteryMap({
     showBoundaryRef.current = showBoundary;
     showBurialsRef.current = showBurials;
     autoPinSingleBurialRef.current = autoPinSingleBurial;
+    singleBurialVerticalAnchorRef.current = singleBurialVerticalAnchor;
     onPinnedPopupChangeRef.current = onPinnedPopupChange;
     cemeteryRef.current = cemetery;
     cemeteriesRef.current = cemeteriesToRender;
     sectorsRef.current = sectors;
     burialsRef.current = burials;
     selectedSectorIdRef.current = selectedSectorId;
-  }, [burials, cemetery, cemeteriesToRender, sectors, selectedSectorId, showBoundary, showBurials, showSectors, autoPinSingleBurial, onPinnedPopupChange]);
+  }, [burials, cemetery, cemeteriesToRender, sectors, selectedSectorId, showBoundary, showBurials, showSectors, autoPinSingleBurial, singleBurialVerticalAnchor, onPinnedPopupChange]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -1017,7 +1022,7 @@ export default function CemeteryMap({
         pendingFocusRef.current = null;
       }
       if (pendingBurialsFocusRef.current && burialsRef.current?.length) {
-        fitMapToBurials(map, burialsRef.current);
+        fitMapToBurials(map, burialsRef.current, singleBurialVerticalAnchorRef.current);
         pendingBurialsFocusRef.current = false;
       }
 
@@ -1230,7 +1235,7 @@ export default function CemeteryMap({
       }
       closeSectorPopup(sectorPopupRef);
       setSelectedSectorId(null);
-      fitMapToBurials(map, burials);
+      fitMapToBurials(map, burials, singleBurialVerticalAnchorRef.current);
       return;
     }
 

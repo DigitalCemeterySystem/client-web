@@ -7,6 +7,11 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 
 export const metadata: Metadata = {
   title: 'Digital Cemetery System',
+  icons: {
+    icon: '/dcs-favicon.svg',
+    shortcut: '/dcs-favicon.svg',
+    apple: '/dcs-favicon.png',
+  },
   description: 'Современная система цифровизации и управления кладбищами',
 };
 
