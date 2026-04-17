@@ -179,3 +179,132 @@ export interface ChangePasswordRequest {
   newPassword: string;
   confirmNewPassword: string;
 }
+
+export type RagJobStatus = 'pending' | 'running' | 'succeeded' | 'failed';
+
+export interface RagLogEntry {
+  timestamp: string;
+  stage: string;
+  level: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+}
+
+export interface SearchResultLink {
+  url: string;
+  title: string | null;
+}
+
+export interface RelevantInfoRecord {
+  id: number;
+  fullName?: string;
+  full_name: string;
+  query: string;
+  request: Record<string, unknown>;
+  urls: SearchResultLink[];
+  relevant_preview: string;
+  relevant_text_length: number;
+  created_at: string;
+}
+
+export interface RelevantInfoRecordDetail extends RelevantInfoRecord {
+  relevant_text: string;
+}
+
+export interface PersonSearchRequest {
+  full_name: string;
+  city?: string;
+  birth_date?: string;
+  death_date?: string;
+  cemetery?: string;
+  extra_terms?: string;
+  limit: number;
+}
+
+export interface PersonSearchJob {
+  id: string;
+  status: RagJobStatus;
+  stage: string;
+  request: PersonSearchRequest;
+  query: string | null;
+  urls: SearchResultLink[];
+  record_id: number | null;
+  relevant_preview: string | null;
+  relevant_text_length: number;
+  logs: RagLogEntry[];
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EntitySet {
+  PER: string[];
+  DATE: string[];
+  LOC: string[];
+  ORG: string[];
+}
+
+export interface FactTriplet {
+  subject: string;
+  relation: string;
+  object: string;
+}
+
+export interface ComparedItem {
+  value: string;
+  best_match: string | null;
+  similarity: number;
+  status: 'true' | 'review' | 'hallucination';
+}
+
+export interface BiographyMetrics {
+  entities: { coverage: number; factuality: number };
+  facts: { coverage: number; factuality: number };
+  final_score: number;
+}
+
+export interface BiographyReport {
+  generated_entities: ComparedItem[];
+  generated_facts: ComparedItem[];
+  missing_source_entities: string[];
+  missing_source_facts: string[];
+  totals: Record<'true' | 'review' | 'hallucination', number>;
+}
+
+export interface BiographyResultPayload {
+  biography?: string | null;
+  source_entities?: EntitySet | null;
+  generated_entities?: EntitySet | null;
+  source_facts?: FactTriplet[] | null;
+  generated_facts?: FactTriplet[] | null;
+  metrics?: BiographyMetrics | null;
+  report?: BiographyReport | null;
+}
+
+export interface BiographyJob {
+  id: string;
+  status: RagJobStatus;
+  stage: string;
+  request: { record_id: number; variants: number; sentence_count: number };
+  record_id: number;
+  biography_id: number | null;
+  result: BiographyResultPayload;
+  logs: RagLogEntry[];
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BiographyRecord {
+  id: number;
+  source_record_id: number;
+  full_name: string;
+  biography: string;
+  source_text_preview: string;
+  source_entities: EntitySet;
+  generated_entities: EntitySet;
+  source_facts: FactTriplet[];
+  generated_facts: FactTriplet[];
+  metrics: BiographyMetrics;
+  report: BiographyReport;
+  created_at: string;
+}

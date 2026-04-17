@@ -3,6 +3,7 @@
 import { burialService } from '@/core/api/burial.service';
 import { cemeteryService } from '@/core/api/cemetery.service';
 import AuthRequiredModal from '@/components/ui/AuthRequiredModal';
+import { resolveImageSource } from '@/core/utils/image-source';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import type { BurialResponse } from '@/types';
 import {
@@ -46,43 +47,8 @@ function resolveCoordinates(burial: BurialResponse) {
   };
 }
 
-function extractGoogleDriveFileId(rawUrl: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-    const host = url.hostname.toLowerCase();
-    const isGoogleDriveHost =
-      host === 'drive.google.com' ||
-      host === 'docs.google.com' ||
-      host.endsWith('.drive.google.com');
-
-    if (!isGoogleDriveHost) return null;
-
-    const idFromQuery = url.searchParams.get('id');
-    if (idFromQuery) return idFromQuery;
-
-    const idFromPath = url.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1];
-    if (idFromPath) return idFromPath;
-  } catch {
-    // Ignore invalid URLs and fallback to regex extraction.
-  }
-
-  return rawUrl.match(/[-\w]{25,}/)?.[0] ?? null;
-}
-
 function resolveBurialPhoto(rawUrl: string | null) {
-  if (!rawUrl?.trim()) return null;
-
-  const source = rawUrl.trim();
-  const fileId = extractGoogleDriveFileId(source);
-  if (!fileId) {
-    return { src: source, href: source };
-  }
-
-  return {
-    src: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`,
-    fallbackSrc: `https://drive.google.com/uc?export=view&id=${fileId}`,
-    href: `https://drive.google.com/uc?export=view&id=${fileId}`,
-  };
+  return resolveImageSource(rawUrl ?? '');
 }
 
 function buildYandexMapsUrl(latitude: number, longitude: number) {
@@ -312,6 +278,7 @@ export default function BurialDetailsPage({ params }: { params: Promise<{ id: st
                   alt={`Фотография захоронения ${burial.fullName}`}
                   loading="eager"
                   decoding="async"
+                  referrerPolicy="no-referrer"
                   className="block h-full w-full object-cover"
                   onError={(event) => {
                     const image = event.currentTarget;

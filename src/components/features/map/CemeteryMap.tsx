@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import { useTheme } from 'next-themes';
+import { resolveImageSource } from '@/core/utils/image-source';
 import type { BurialResponse, CemeteryResponse, SectorResponse } from '@/types';
 
 interface CemeteryMapProps {
@@ -111,42 +112,9 @@ function getPopupData(burial: BurialResponse) {
   };
 }
 
-function extractGoogleDriveFileId(rawUrl: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-    const host = url.hostname.toLowerCase();
-    const isGoogleDriveHost =
-      host === 'drive.google.com' ||
-      host === 'docs.google.com' ||
-      host.endsWith('.drive.google.com');
-    if (!isGoogleDriveHost) return null;
-
-    const idFromQuery = url.searchParams.get('id');
-    if (idFromQuery) return idFromQuery;
-
-    const idFromPath = url.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1];
-    if (idFromPath) return idFromPath;
-  } catch {
-    // Ignore invalid URLs and fallback to regex extraction.
-  }
-
-  return rawUrl.match(/[-\w]{25,}/)?.[0] ?? null;
-}
-
 function resolvePopupPhoto(rawUrl: string | null): PopupPhoto | null {
-  if (!rawUrl?.trim()) return null;
-
-  const source = rawUrl.trim();
-  const fileId = extractGoogleDriveFileId(source);
-  if (!fileId) {
-    return { src: source, href: source };
-  }
-
-  return {
-    src: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`,
-    fallbackSrc: `https://drive.google.com/uc?export=view&id=${fileId}`,
-    href: `https://drive.google.com/uc?export=view&id=${fileId}`,
-  };
+  const resolved = resolveImageSource(rawUrl ?? '');
+  return resolved ? { ...resolved } : null;
 }
 
 function buildYandexMapsUrl(latitude: number, longitude: number) {
@@ -418,6 +386,7 @@ function buildBurialPopupContent(burial: BurialResponse, onDetailsNavigate: () =
     image.alt = `Фотография захоронения ${burial.fullName}`;
     image.loading = 'lazy';
     image.decoding = 'async';
+    image.referrerPolicy = 'no-referrer';
     image.className = 'burial-popup-image';
     image.onerror = () => {
       if (popupPhoto.fallbackSrc && image.src !== popupPhoto.fallbackSrc) {

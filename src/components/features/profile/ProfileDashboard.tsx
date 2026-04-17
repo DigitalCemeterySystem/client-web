@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   Eye,
   EyeOff,
+  FileSearch,
   FileText,
   ImagePlus,
   Info,
@@ -13,6 +14,7 @@ import {
   Pencil,
   PencilLine,
   ShieldCheck,
+  Sparkles,
   Trash2,
   UserRound,
 } from 'lucide-react';
@@ -24,8 +26,9 @@ import { UserProfileResponse } from '@/types';
 import UserAvatar from '@/components/ui/UserAvatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ChangeRequestsPanel from '@/components/features/requests/ChangeRequestsPanel';
+import { BiographyGenerationPanel, SearchInformationPanel } from '@/components/features/profile/RagPanels';
 
-type ProfileSection = 'profile' | 'myRequests' | 'usersRequests';
+type ProfileSection = 'profile' | 'myRequests' | 'usersRequests' | 'infoSearch' | 'biographies';
 
 type AvatarCrop = {
   x: number;
@@ -204,6 +207,8 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
 
   const pageTitle = useMemo(() => {
     if (section === 'usersRequests') return 'Заявки пользователей';
+    if (section === 'infoSearch') return 'Поиск информации';
+    if (section === 'biographies') return 'Генерация биографий';
     if (section === 'myRequests') return 'Мои заявки';
     return 'Профиль';
   }, [section]);
@@ -515,6 +520,7 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
 
   const rolePresentation = getRolePresentation(user.role);
   const canModerate = user.role === 'MODERATOR' || user.role === 'ADMIN';
+  const isAdmin = user.role === 'ADMIN';
 
   return (
     <>
@@ -578,6 +584,34 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
                 >
                   <ShieldCheck className="h-4 w-4" />
                   Заявки пользователей
+                </Link>
+              )}
+              {isAdmin && (
+                <Link
+                  href="/profile/search"
+                  className={[
+                    'mt-2 flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition',
+                    section === 'infoSearch'
+                      ? 'bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)]'
+                      : 'text-[color:var(--ink)] hover:bg-[color:var(--bg-elevated)]',
+                  ].join(' ')}
+                >
+                  <FileSearch className="h-4 w-4" />
+                  Поиск информации
+                </Link>
+              )}
+              {isAdmin && (
+                <Link
+                  href="/profile/biographies"
+                  className={[
+                    'mt-2 flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition',
+                    section === 'biographies'
+                      ? 'bg-[color:var(--accent-soft)] text-[color:var(--accent-strong)]'
+                      : 'text-[color:var(--ink)] hover:bg-[color:var(--bg-elevated)]',
+                  ].join(' ')}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Генерация биографий
                 </Link>
               )}
             </section>
@@ -739,6 +773,22 @@ export default function ProfileDashboard({ section }: { section: ProfileSection 
                   <button className="pill-action mt-5 px-5 py-2.5 text-sm font-semibold">Обновить пароль</button>
                 </form>
               </>
+            ) : section === 'infoSearch' && !isAdmin ? (
+              <section className="surface-muted rounded-3xl p-6 sm:p-8">
+                <p className="text-sm text-[color:var(--ink-muted)]">
+                  Раздел «Поиск информации» доступен только администраторам.
+                </p>
+              </section>
+            ) : section === 'infoSearch' ? (
+              <SearchInformationPanel />
+            ) : section === 'biographies' && !isAdmin ? (
+              <section className="surface-muted rounded-3xl p-6 sm:p-8">
+                <p className="text-sm text-[color:var(--ink-muted)]">
+                  Раздел «Генерация биографий» доступен только администраторам.
+                </p>
+              </section>
+            ) : section === 'biographies' ? (
+              <BiographyGenerationPanel />
             ) : section === 'usersRequests' && !canModerate ? (
               <section className="surface-muted rounded-3xl p-6 sm:p-8">
                 <p className="text-sm text-[color:var(--ink-muted)]">

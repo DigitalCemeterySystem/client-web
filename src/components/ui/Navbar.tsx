@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Map, Users, Sun, Moon, ChevronDown, UserRound, FileText, LogOut, CirclePlus, MapPinned, Landmark, ShieldCheck, X } from 'lucide-react';
+import { Map, Users, Sun, Moon, ChevronDown, UserRound, FileText, LogOut, CirclePlus, MapPinned, Landmark, ShieldCheck, FileSearch, Sparkles, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -121,6 +121,7 @@ export default function Navbar() {
 
   const rolePresentation = user ? getRolePresentation(user.role) : null;
   const canModerate = user?.role === 'MODERATOR' || user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <>
@@ -279,6 +280,26 @@ export default function Navbar() {
                           <ShieldCheck className="h-4 w-4 text-[color:var(--ink-muted)]" />
                           Заявки пользователей
                         </Link>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <Link
+                            href="/profile/search"
+                            className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ink)] transition hover:bg-[color:var(--bg-elevated)]"
+                            onClick={() => setMenuOpen(false)}
+                          >
+                            <FileSearch className="h-4 w-4 text-[color:var(--ink-muted)]" />
+                            Поиск информации
+                          </Link>
+                          <Link
+                            href="/profile/biographies"
+                            className="mt-1 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ink)] transition hover:bg-[color:var(--bg-elevated)]"
+                            onClick={() => setMenuOpen(false)}
+                          >
+                            <Sparkles className="h-4 w-4 text-[color:var(--ink-muted)]" />
+                            Генерация биографий
+                          </Link>
+                        </>
                       )}
                     </section>
 
