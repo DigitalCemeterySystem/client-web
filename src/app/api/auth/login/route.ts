@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applySessionCookies, fetchBackend, toWebSessionResponse } from '@/core/auth/session';
+import { demoLogin } from '@/core/demo/auth';
+import { isDemoMode } from '@/core/demo/mode';
 
 export async function POST(request: NextRequest) {
+  if (isDemoMode()) {
+    return demoLogin(request);
+  }
+
   const body = await request.text();
   const backendResponse = await fetchBackend('/api/auth/login', {
     method: 'POST',

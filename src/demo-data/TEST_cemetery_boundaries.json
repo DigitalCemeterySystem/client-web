@@ -1,0 +1,108 @@
+{
+  "cemeteryBoundary": [
+    {
+      "latitude": 54.8754135,
+      "longitude": 83.0809039
+    },
+    {
+      "latitude": 54.8753229,
+      "longitude": 83.0880665
+    },
+    {
+      "latitude": 54.8754284,
+      "longitude": 83.0925395
+    },
+    {
+      "latitude": 54.8767744,
+      "longitude": 83.0916786
+    },
+    {
+      "latitude": 54.878961,
+      "longitude": 83.0924809
+    },
+    {
+      "latitude": 54.8792569,
+      "longitude": 83.0883994
+    },
+    {
+      "latitude": 54.8769199,
+      "longitude": 83.0881865
+    },
+    {
+      "latitude": 54.8770632,
+      "longitude": 83.0810996
+    },
+    {
+      "latitude": 54.8754135,
+      "longitude": 83.0809039 
+    }
+  ],
+  "quarterBoundaries": {
+    "1": [
+      {
+        "latitude": 54.8770632,
+        "longitude": 83.0810996 
+      },
+      {
+        "latitude": 54.8769199,
+        "longitude": 83.0881865
+      },
+      {
+        "latitude": 54.8753229,
+        "longitude": 83.0880665  
+      },
+      {
+        "latitude": 54.8754135,
+        "longitude": 83.0809039  
+      },
+      {
+        "latitude": 54.8770632,
+        "longitude": 83.0810996
+      }
+    ],
+    "2": [
+      {
+        "latitude": 54.8792569,
+        "longitude": 83.0883994
+      },
+      {
+        "latitude": 54.878961,
+        "longitude": 83.0924809
+      },
+      {
+        "latitude": 54.8767744,
+        "longitude": 83.0916786  
+      },
+      {
+        "latitude": 54.8769199,
+        "longitude": 83.0881865   
+      },
+      {
+        "latitude": 54.8792569,
+        "longitude": 83.0883994 
+      }
+    ],
+    "А": [
+      {
+        "latitude": 54.8769199,
+        "longitude": 83.0881865 
+      },
+      {
+        "latitude": 54.8767744,
+        "longitude": 83.0916786 
+      },
+      {
+        "latitude": 54.8754284,
+        "longitude": 83.0925395 
+      },
+      {
+        "latitude": 54.8753229,
+        "longitude": 83.0880665  
+      },
+      {
+        "latitude": 54.8769199,
+        "longitude": 83.0881865
+      }
+    ]
+  }
+}

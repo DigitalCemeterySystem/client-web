@@ -948,7 +948,7 @@ export default function CemeteryMap({
         const style = (await response.json()) as maplibregl.StyleSpecification;
         stylesCacheRef.current[themeKey] = style;
       } catch {
-        // ignore: fallback to style URL if preloading failed
+        // Если предварительная загрузка не удалась, MapLibre сам загрузит стиль по URL.
       }
     };
 

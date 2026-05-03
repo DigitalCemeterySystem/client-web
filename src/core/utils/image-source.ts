@@ -20,7 +20,7 @@ export function extractGoogleDriveFileId(rawUrl: string): string | null {
     const idFromPath = url.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1];
     if (idFromPath) return idFromPath;
   } catch {
-    // Ignore invalid URL and fallback to regex below.
+    // Если URL некорректный, ниже пробуем достать идентификатор регулярным выражением.
   }
 
   return rawUrl.match(/[-\w]{25,}/)?.[0] ?? null;

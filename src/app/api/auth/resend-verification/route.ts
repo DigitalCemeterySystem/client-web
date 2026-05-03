@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchBackend } from '@/core/auth/session';
+import { demoResendVerification } from '@/core/demo/auth';
+import { isDemoMode } from '@/core/demo/mode';
 
 export async function POST(request: NextRequest) {
+  if (isDemoMode()) {
+    return demoResendVerification();
+  }
+
   const body = await request.text();
   const forwardedFor = request.headers.get('x-forwarded-for')
     ?? request.headers.get('x-real-ip')

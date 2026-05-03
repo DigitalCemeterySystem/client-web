@@ -1,14 +1,14 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 
 /**
- * Базовый HTTP-клиент. Все запросы направляются на API Gateway.
- * В браузере используем относительный путь /api (проксируется next.config),
- * в SSR-контексте — полный URL из переменной окружения.
+ * Базовый HTTP-клиент.
+ * В браузере запросы идут на относительный путь /api и обрабатываются Next.js.
+ * На сервере используется URL API Gateway из переменных окружения.
  */
 const createApiClient = (): AxiosInstance => {
   const baseURL =
     typeof window === 'undefined'
-      ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api`
+      ? `${process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api`
       : '/api';
 
   const instance = axios.create({
@@ -19,11 +19,10 @@ const createApiClient = (): AxiosInstance => {
     timeout: 10_000,
   });
 
-  // Request interceptor — место для добавления токена авторизации в будущем
+  // Здесь можно будет добавить заголовок авторизации, если браузерным запросам на запись потребуется bearer-токен.
   instance.interceptors.request.use(
     (config) => {
-      // Web-auth now uses HttpOnly cookies and Next route handlers.
-      // Add an Authorization header here later if browser-side write flows need it.
+      // Сейчас веб-авторизация использует HttpOnly cookies и Next.js Route Handlers.
       // const token = getToken();
       // if (token) config.headers.Authorization = `Bearer ${token}`;
       return config;
@@ -31,14 +30,14 @@ const createApiClient = (): AxiosInstance => {
     (error) => Promise.reject(error)
   );
 
-  // Response interceptor — централизованная обработка ошибок
+  // Централизованная обработка ошибок API.
   instance.interceptors.response.use(
     (response: AxiosResponse) => response,
     (error) => {
       if (error.response?.status === 404) {
-        console.error('[API] Resource not found:', error.config?.url);
+        console.error('[API] Ресурс не найден:', error.config?.url);
       } else if (error.response?.status >= 500) {
-        console.error('[API] Server error:', error.response?.data);
+        console.error('[API] Ошибка сервера:', error.response?.data);
       }
       return Promise.reject(error);
     }

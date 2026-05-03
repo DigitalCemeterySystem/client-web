@@ -1,10 +1,10 @@
-// ── Coordinate ────────────────────────────────────────────────────────────────
+// Координата.
 export interface CoordinateDTO {
   latitude: number;
   longitude: number;
 }
 
-// ── Cemetery ──────────────────────────────────────────────────────────────────
+// Кладбище.
 export interface CemeteryResponse {
   id: number;
   name: string;
@@ -21,7 +21,7 @@ export interface CemeteryRequest {
   boundary: CoordinateDTO[];
 }
 
-// ── Sector ────────────────────────────────────────────────────────────────────
+// Сектор.
 export interface SectorResponse {
   id: number;
   name: string;
@@ -37,7 +37,7 @@ export interface SectorRequest {
   boundary: CoordinateDTO[];
 }
 
-// ── Burial ────────────────────────────────────────────────────────────────────
+// Захоронение и заявки на изменение данных.
 export type BiographyStatus = 'PENDING' | 'GENERATED' | 'FAILED' | 'NOT_REQUESTED';
 
 export interface BurialResponse {
@@ -125,8 +125,8 @@ export interface ChangeRequestResponse {
   fields: ChangeRequestFieldResponse[];
 }
 
-// ── GeoJSON helpers ───────────────────────────────────────────────────────────
-export type LngLatTuple = [number, number]; // [longitude, latitude]
+// Вспомогательные типы GeoJSON.
+export type LngLatTuple = [number, number]; // [долгота, широта]
 
 export interface BurialMarker {
   id: number;

@@ -4,7 +4,7 @@ import { UserProfileResponse, WebSessionResponse } from '@/types';
 
 const ACCESS_COOKIE = 'dcs_access_token';
 const REFRESH_COOKIE = 'dcs_refresh_token';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 const SESSION_COOKIE_SECURE = process.env.SESSION_COOKIE_SECURE;
 
 function shouldUseSecureCookies() {
@@ -61,8 +61,8 @@ export async function fetchBackend(path: string, init: RequestInit = {}) {
       cache: 'no-store',
     });
   } catch (error) {
-    // Spring Gateway sometimes closes unauthorized responses in a way that
-    // undici surfaces as a parser error instead of a normal 401 response.
+    // Spring Gateway иногда закрывает ответ 401 так, что undici
+    // возвращает ошибку парсера вместо обычного ответа.
     if (isUnauthorizedClosedConnection(error)) {
       return new Response(null, { status: 401 });
     }

@@ -3,7 +3,7 @@ import type { CemeteryRequest, CemeteryResponse } from '@/types';
 
 /**
  * Сервис для работы с кладбищами.
- * Принцип единственной ответственности: только HTTP-запросы к /api/cemeteries
+ * Здесь остаются только HTTP-запросы к /api/cemeteries.
  */
 export const cemeteryService = {
   getAll: async (): Promise<CemeteryResponse[]> => {

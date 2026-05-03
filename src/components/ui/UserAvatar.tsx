@@ -96,8 +96,8 @@ export default function UserAvatar({
   return (
     <div className={`relative overflow-hidden rounded-full border border-[color:var(--line)] bg-[color:var(--bg-elevated)] ${sizeClasses[size]}`}>
       {shouldUseCustomAvatar ? (
-        // `img` is intentional: users can provide arbitrary remote avatar URLs.
-        // Next/Image would require allow-listing domains in config.
+        // Здесь намеренно используется `img`: пользователь может указать произвольный внешний URL аватара.
+        // Next/Image потребовал бы заранее разрешить домены в конфигурации.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={currentSrc}

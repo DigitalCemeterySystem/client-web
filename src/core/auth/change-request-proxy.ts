@@ -4,6 +4,8 @@ import {
   clearSessionCookies,
   refreshSession,
 } from '@/core/auth/session';
+import { handleDemoChangeRequest } from '@/core/demo/change-requests';
+import { isDemoMode } from '@/core/demo/mode';
 
 type SupportedMethod = 'GET' | 'POST' | 'PUT';
 
@@ -31,6 +33,10 @@ export async function proxyChangeRequest(
   backendPath: string,
   method: SupportedMethod
 ) {
+  if (isDemoMode()) {
+    return handleDemoChangeRequest(request, backendPath, method);
+  }
+
   const initialAccessToken = request.cookies.get('dcs_access_token')?.value ?? null;
   const refreshToken = request.cookies.get('dcs_refresh_token')?.value ?? null;
   const body = method === 'GET' ? undefined : await request.text();

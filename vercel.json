@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "env": {
+    "DCS_DEMO_MODE": "true",
+    "NEXT_PUBLIC_DCS_DEMO_MODE": "true",
+    "SESSION_COOKIE_SECURE": "true"
+  }
+}

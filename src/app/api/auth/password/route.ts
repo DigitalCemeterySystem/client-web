@@ -6,8 +6,14 @@ import {
   readSessionTokens,
   refreshSession,
 } from '@/core/auth/session';
+import { demoPasswordChange } from '@/core/demo/auth';
+import { isDemoMode } from '@/core/demo/mode';
 
 export async function PATCH(request: NextRequest) {
+  if (isDemoMode()) {
+    return demoPasswordChange();
+  }
+
   const { accessToken: initialAccessToken, refreshToken } = await readSessionTokens();
   const body = await request.text();
   let accessToken = initialAccessToken;

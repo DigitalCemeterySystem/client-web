@@ -7,6 +7,9 @@ import {
   readSessionTokens,
   refreshSession,
 } from '@/core/auth/session';
+import { requireDemoUser } from '@/core/demo/auth';
+import { isDemoMode } from '@/core/demo/mode';
+import { handleDemoServiceRequest } from '@/core/demo/rag';
 
 type AuthorizedContext = {
   accessToken: string;
@@ -61,6 +64,14 @@ async function authorize(allowedRoles: UserRole[]): Promise<AuthorizedContext | 
 }
 
 export async function proxyAuthorizedRequest(request: NextRequest, backendPath: string, allowedRoles: UserRole[]) {
+  if (isDemoMode()) {
+    const auth = requireDemoUser(request, allowedRoles);
+    if (auth.response) {
+      return auth.response;
+    }
+    return handleDemoServiceRequest(request, backendPath);
+  }
+
   const auth = await authorize(allowedRoles);
   if (auth instanceof NextResponse) {
     return auth;
